@@ -31,9 +31,11 @@ class ProcessCommandUseCase(
         // 2. 调用 LLM 生成计划
         val plannedTask = llmRepository.planTask(command, availableApps)
 
-        // 3. 更新为 READY，等待用户确认
+        // 3. 更新为 READY，等待用户确认（修正步骤的 taskId）
+        val fixedSteps = plannedTask.steps.map { it.copy(taskId = planningTask.id) }
         val readyTask = plannedTask.copy(
             id = planningTask.id,
+            steps = fixedSteps,
             status = com.example.aimobileagent.domain.model.TaskStatus.READY,
             createdAt = planningTask.createdAt
         )

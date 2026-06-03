@@ -113,7 +113,7 @@ class LLMRepositoryImpl @Inject constructor(
 
         val steps = planDto.steps.map { dto ->
             Step(
-                taskId = "",
+                taskId = "",  // 由 saveTask 时自动修正
                 orderIndex = dto.order,
                 actionType = dto.action,
                 targetApp = dto.target,
