@@ -54,23 +54,36 @@ class StreamingLLMClient @Inject constructor(
 
         val reader = BufferedReader(InputStreamReader(resp.body?.byteStream()))
         val fullText = StringBuilder()
-        reader.forEachLine { line ->
-            if (!line.startsWith("data: ")) return@forEachLine
-            val data = line.removePrefix("data: ").trim()
-            if (data == "[DONE]") return@forEachLine
-            try {
-                val content = extractContent(data)
-                if (content.isNotEmpty()) {
-                    fullText.append(content)
-                    trySend(StreamEvent.Chunk(content, fullText.toString()))
-                }
-            } catch (_: Exception) {}
+        var line: String?
+        var chunkCount = 0
+        var lastEmit = 0L
+        try {
+            while (reader.readLine().also { line = it } != null) {
+                val l = line ?: break
+                if (!l.startsWith("data: ")) continue
+                val data = l.removePrefix("data: ").trim()
+                if (data == "[DONE]") break
+                try {
+                    val content = extractContent(data)
+                    if (content.isNotEmpty()) {
+                        fullText.append(content)
+                        chunkCount++
+                        val now = System.currentTimeMillis()
+                        if (now - lastEmit >= 50 || fullText.length < 30) {
+                            lastEmit = now
+                            send(StreamEvent.Chunk(content, fullText.toString()))
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            if (fullText.isNotEmpty()) send(StreamEvent.Chunk("", fullText.toString()))
+        } finally {
+            reader.close(); resp.close()
         }
-        reader.close(); resp.close()
 
         val final = fullText.toString().trim()
-        if (final.isBlank()) trySend(StreamEvent.Error("空响应"))
-        else trySend(StreamEvent.Done(parseResponse(final)))
+        if (final.isBlank()) send(StreamEvent.Error("空响应"))
+        else send(StreamEvent.Done(parseResponse(final)))
         close()
     }
 
