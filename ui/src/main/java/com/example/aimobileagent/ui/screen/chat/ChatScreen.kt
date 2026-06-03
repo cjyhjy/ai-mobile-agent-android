@@ -65,21 +65,26 @@ fun ChatScreen(
                 Text("选择模型", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
                 uiState.availableModels.forEach { model ->
+                    val isSelected = model.name == uiState.selectedModel
                     Surface(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        onClick = {
-                            if (model != "deepseek-chat") viewModel.showApiKeyDialog()
-                            viewModel.selectModel(model)
-                        },
-                        color = if (model == uiState.selectedModel) MaterialTheme.colorScheme.primaryContainer
+                        onClick = { viewModel.selectModel(model) },
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceVariant,
                         shape = MaterialTheme.shapes.medium) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = model == uiState.selectedModel, onClick = null)
+                            RadioButton(selected = isSelected, onClick = null)
                             Spacer(Modifier.width(8.dp))
                             Column {
-                                Text(model, style = MaterialTheme.typography.bodyMedium)
-                                Text(if (model == "deepseek-chat") "默认" else "需要单独配置API Key",
-                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(model.name, style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.width(8.dp))
+                                    Surface(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), shape = MaterialTheme.shapes.extraSmall) {
+                                        Text(model.provider, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                    }
+                                }
+                                Text(model.endpoint, style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                             }
                         }
                     }
