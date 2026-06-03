@@ -62,7 +62,7 @@ class LLMRepositoryImpl @Inject constructor(
                 Message(role = "system", content = systemPrompt),
                 Message(role = "user", content = userCommand)
             ),
-            responseFormat = null,  // DeepSeek 可能不支持，先去掉
+            responseFormat = ResponseFormat("json_object"),
             temperature = 0.1,
             maxTokens = 2000
         )

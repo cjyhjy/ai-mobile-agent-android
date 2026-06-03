@@ -22,6 +22,7 @@ data class ChatUiState(
 data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
+    val isThinking: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -48,7 +49,9 @@ class ChatViewModel @Inject constructor(
                 inputText = "",
                 isProcessing = true,
                 error = null,
-                messages = state.messages + ChatMessage(text = command, isFromUser = true)
+                messages = state.messages +
+                    ChatMessage(text = command, isFromUser = true) +
+                    ChatMessage(text = "", isFromUser = false, isThinking = true)
             )
         }
 
@@ -69,14 +72,15 @@ class ChatViewModel @Inject constructor(
                 android.util.Log.e("ChatVM", "LLM 返回成功: intent=${task.intent}, steps=${task.steps.size}")
 
                 _uiState.update { state ->
-                    // 聊天模式：直接显示 LLM 回复
                     val isChat = task.intent.startsWith("chat:")
                     val replyText = if (isChat) task.intent.removePrefix("chat:") else null
+                    // 移除 thinking 消息，替换为实际回复
+                    val cleanMessages = state.messages.filter { !it.isThinking }
 
                     state.copy(
                         isProcessing = false,
                         currentTask = if (isChat) null else task,
-                        messages = state.messages + ChatMessage(
+                        messages = cleanMessages + ChatMessage(
                             text = replyText ?: "📋 计划生成完毕，共 ${task.steps.size} 步，需要你确认后执行。",
                             isFromUser = false
                         )
@@ -85,10 +89,11 @@ class ChatViewModel @Inject constructor(
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "LLM 调用失败: ${e.message}", e)
                 _uiState.update { state ->
+                    val cleanMessages = state.messages.filter { !it.isThinking }
                     state.copy(
                         isProcessing = false,
-                        error = e.message ?: "未知错误"
-                        // 错误只显示在 Snackbar，不加入消息列表（关闭 Snackbar 即清除）
+                        error = e.message ?: "未知错误",
+                        messages = cleanMessages
                     )
                 }
             }
