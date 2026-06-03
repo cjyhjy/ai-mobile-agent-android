@@ -1,0 +1,101 @@
+package com.example.aimobileagent.data.remote
+
+import android.content.SharedPreferences
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import javax.inject.Inject
+import javax.inject.Singleton
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+
+@Singleton
+class StreamingLLMClient @Inject constructor(
+    private val prefs: SharedPreferences,
+    private val okHttpClient: OkHttpClient
+) {
+    fun streamChat(
+        userMessage: String,
+        history: List<Pair<String, String>> = emptyList()
+    ): Flow<StreamEvent> = callbackFlow {
+        val apiKey = prefs.getString("api_key", "") ?: ""
+        val model = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
+
+        if (apiKey.isBlank()) { trySend(StreamEvent.Error("API Key未配置")); close(); return@callbackFlow }
+
+        val sysPrompt = "你是智能手机助手，能聊天也能帮执行手机任务。用中文回复，支持Markdown。"
+
+        val sb = StringBuilder()
+        sb.append("""{"role":"system","content":"$sysPrompt"}""")
+        for ((role, content) in history.takeLast(10)) {
+            val esc = content.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
+            sb.append(""",{"role":"$role","content":"$esc"}""")
+        }
+        val escUser = userMessage.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
+        sb.append(""",{"role":"user","content":"$escUser"}""")
+
+        val body = """{"model":"$model","messages":[$sb],"stream":true}"""
+
+        val req = Request.Builder()
+            .url("https://api.deepseek.com/v1/chat/completions")
+            .header("Authorization", "Bearer $apiKey")
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        trySend(StreamEvent.Thinking)
+        val resp = okHttpClient.newCall(req).execute()
+        if (!resp.isSuccessful) {
+            trySend(StreamEvent.Error("API ${resp.code}: ${resp.body?.string()?.take(200)}"))
+            close(); return@callbackFlow
+        }
+
+        val reader = BufferedReader(InputStreamReader(resp.body?.byteStream()))
+        val fullText = StringBuilder()
+        reader.forEachLine { line ->
+            if (!line.startsWith("data: ")) return@forEachLine
+            val data = line.removePrefix("data: ").trim()
+            if (data == "[DONE]") return@forEachLine
+            try {
+                val content = extractContent(data)
+                if (content.isNotEmpty()) {
+                    fullText.append(content)
+                    trySend(StreamEvent.Chunk(content, fullText.toString()))
+                }
+            } catch (_: Exception) {}
+        }
+        reader.close(); resp.close()
+
+        val final = fullText.toString().trim()
+        if (final.isBlank()) trySend(StreamEvent.Error("空响应"))
+        else trySend(StreamEvent.Done(parseResponse(final)))
+        close()
+    }
+
+    private fun extractContent(jsonLine: String): String {
+        // Simple JSON parsing to avoid kotlinx.serialization issues
+        val pattern = Regex(""""content"\s*:\s*"((?:[^"\\]|\\.)*)"""")
+        return pattern.find(jsonLine)?.groupValues?.get(1)?.let {
+            it.replace("\\n", "\n").replace("\\t", "\t").replace("\\\"", "\"").replace("\\\\", "\\")
+        } ?: ""
+    }
+
+    private fun parseResponse(text: String): ParsedResponse {
+        val modeM = Regex(""""mode"\s*:\s*"(chat|task)"""").find(text)
+        if (modeM != null) {
+            val replyM = Regex(""""reply"\s*:\s*"((?:[^"\\]|\\.)*)"""").find(text)
+            return ParsedResponse(modeM.groupValues[1], replyM?.groupValues?.get(1)?.replace("\\n","\n") ?: text)
+        }
+        return ParsedResponse("chat", text)
+    }
+}
+
+sealed class StreamEvent {
+    data object Thinking : StreamEvent()
+    data class Chunk(val delta: String, val fullText: String) : StreamEvent()
+    data class Done(val response: ParsedResponse) : StreamEvent()
+    data class Error(val message: String) : StreamEvent()
+}
+data class ParsedResponse(val mode: String, val reply: String = "", val intent: String = "", val rawText: String = "")

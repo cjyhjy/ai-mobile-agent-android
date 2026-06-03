@@ -2,10 +2,11 @@ package com.example.aimobileagent.ui.screen.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.aimobileagent.data.remote.StreamEvent
+import com.example.aimobileagent.data.remote.StreamingLLMClient
 import com.example.aimobileagent.domain.model.Task
 import com.example.aimobileagent.domain.model.TaskStatus
 import com.example.aimobileagent.domain.repository.TaskRepository
-import com.example.aimobileagent.domain.usecase.ProcessCommandUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,6 +16,7 @@ data class ChatUiState(
     val inputText: String = "",
     val currentTask: Task? = null,
     val isProcessing: Boolean = false,
+    val streamingText: String = "",     // 流式实时文本
     val messages: List<ChatMessage> = emptyList(),
     val error: String? = null
 )
@@ -23,17 +25,21 @@ data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
     val isThinking: Boolean = false,
+    val isStreaming: Boolean = false,   // 正在流式输出中
     val timestamp: Long = System.currentTimeMillis()
 )
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
-    private val processCommandUseCase: ProcessCommandUseCase,
+    private val streamingClient: StreamingLLMClient,
     private val taskRepository: TaskRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    // 对话历史 (role, content)
+    private val conversationHistory = mutableListOf<Pair<String, String>>()
 
     fun onInputChanged(text: String) {
         _uiState.update { it.copy(inputText = text, error = null) }
@@ -42,13 +48,18 @@ class ChatViewModel @Inject constructor(
     fun sendCommand() {
         val command = _uiState.value.inputText.trim()
         if (command.isBlank()) return
-        android.util.Log.e("ChatVM", "发送命令: $command")
+
+        android.util.Log.e("ChatVM", "发送: $command")
+
+        // 保存用户消息到历史
+        conversationHistory.add("user" to command)
 
         _uiState.update { state ->
             state.copy(
                 inputText = "",
                 isProcessing = true,
                 error = null,
+                streamingText = "",
                 messages = state.messages +
                     ChatMessage(text = command, isFromUser = true) +
                     ChatMessage(text = "", isFromUser = false, isThinking = true)
@@ -57,44 +68,63 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                android.util.Log.e("ChatVM", "开始调用 LLM...")
-                // 获取可用 App 列表（简化：从 TaskRepository 获取）
-                val availableApps = listOf(
-                    "com.android.gallery3d",
-                    "com.tencent.mm",
-                    "com.google.android.apps.messaging",
-                    "com.android.settings",
-                    "com.android.browser",
-                    "com.google.android.apps.maps"
-                )
+                streamingClient.streamChat(command, conversationHistory.toList())
+                    .collect { event ->
+                        handleStreamEvent(event)
+                    }
+            } catch (e: Exception) {
+                android.util.Log.e("ChatVM", "流式失败: ${e.message}", e)
+                _uiState.update { state ->
+                    val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                    state.copy(isProcessing = false, error = e.message, messages = clean)
+                }
+            }
+        }
+    }
 
-                val task = processCommandUseCase(command, availableApps)
-                android.util.Log.e("ChatVM", "LLM 返回成功: intent=${task.intent}, steps=${task.steps.size}")
+    private fun handleStreamEvent(event: StreamEvent) {
+        when (event) {
+            is StreamEvent.Thinking -> {
+                // thinking 状态已在 sendCommand 中设置
+            }
+            is StreamEvent.Chunk -> {
+                // 实时更新流式文本
+                _uiState.update { state ->
+                    val msgs = state.messages.toMutableList()
+                    // 找到 thinking 消息，替换为 streaming 消息
+                    val idx = msgs.indexOfLast { it.isThinking || it.isStreaming }
+                    if (idx >= 0) {
+                        msgs[idx] = ChatMessage(
+                            text = event.fullText,
+                            isFromUser = false,
+                            isStreaming = true
+                        )
+                    }
+                    state.copy(messages = msgs, streamingText = event.fullText)
+                }
+            }
+            is StreamEvent.Done -> {
+                val resp = event.response
+                conversationHistory.add("assistant" to (resp.reply.ifBlank { resp.rawText }))
 
                 _uiState.update { state ->
-                    val isChat = task.intent.startsWith("chat:")
-                    val replyText = if (isChat) task.intent.removePrefix("chat:") else null
-                    // 移除 thinking 消息，替换为实际回复
-                    val cleanMessages = state.messages.filter { !it.isThinking }
-
+                    val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                    val replyText = if (resp.mode == "task") {
+                        "📋 任务: ${resp.intent}, ${resp.reply}"
+                    } else {
+                        resp.reply.ifBlank { resp.rawText }
+                    }
                     state.copy(
                         isProcessing = false,
-                        currentTask = if (isChat) null else task,
-                        messages = cleanMessages + ChatMessage(
-                            text = replyText ?: "📋 计划生成完毕，共 ${task.steps.size} 步，需要你确认后执行。",
-                            isFromUser = false
-                        )
+                        streamingText = "",
+                        messages = clean + ChatMessage(text = replyText, isFromUser = false)
                     )
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("ChatVM", "LLM 调用失败: ${e.message}", e)
+            }
+            is StreamEvent.Error -> {
                 _uiState.update { state ->
-                    val cleanMessages = state.messages.filter { !it.isThinking }
-                    state.copy(
-                        isProcessing = false,
-                        error = e.message ?: "未知错误",
-                        messages = cleanMessages
-                    )
+                    val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                    state.copy(isProcessing = false, error = event.message, messages = clean)
                 }
             }
         }
