@@ -12,6 +12,18 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
 
+data class ModelInfo(val name: String, val endpoint: String, val provider: String)
+
+val AVAILABLE_MODELS = listOf(
+    ModelInfo("deepseek-chat", "https://api.deepseek.com", "DeepSeek"),
+    ModelInfo("deepseek-reasoner", "https://api.deepseek.com", "DeepSeek"),
+    ModelInfo("gpt-4o-mini", "https://api.openai.com", "OpenAI"),
+    ModelInfo("gpt-4o", "https://api.openai.com", "OpenAI"),
+    ModelInfo("claude-3.5-haiku", "https://api.anthropic.com", "Anthropic"),
+    ModelInfo("claude-sonnet-4-6", "https://api.anthropic.com", "Anthropic"),
+    ModelInfo("gemini-2.0-flash", "https://generativelanguage.googleapis.com", "Google"),
+)
+
 data class ChatUiState(
     val inputText: String = "",
     val currentTask: Task? = null,
@@ -21,8 +33,9 @@ data class ChatUiState(
     val error: String? = null,
     val showModelPicker: Boolean = false,
     val showApiKeyDialog: Boolean = false,
+    val apiKeyModelName: String = "",
     val selectedModel: String = "deepseek-chat",
-    val availableModels: List<String> = listOf("deepseek-chat", "deepseek-v4-pro", "deepseek-v4-flash"),
+    val availableModels: List<ModelInfo> = AVAILABLE_MODELS,
     val pendingFileUri: Uri? = null
 )
 
@@ -97,17 +110,38 @@ class ChatViewModel @Inject constructor(
 
     // === 模型选择 ===
     fun toggleModelPicker() { _uiState.update { it.copy(showModelPicker = !it.showModelPicker) } }
-    fun selectModel(model: String) {
-        prefs.edit().putString("model_name", model).apply()
-        _uiState.update { it.copy(selectedModel = model, showModelPicker = false) }
+
+    fun selectModel(model: ModelInfo) {
+        // 检查该模型是否已配 API Key
+        val existingKey = prefs.getString("api_key_${model.name}", null)
+        if (existingKey.isNullOrBlank() && model.name != "deepseek-chat") {
+            // 需要配置 API Key
+            _uiState.update { it.copy(showModelPicker = false, apiKeyModelName = model.name, showApiKeyDialog = true) }
+        } else {
+            applyModelSelection(model.name)
+        }
+    }
+
+    private fun applyModelSelection(name: String) {
+        prefs.edit().putString("model_name", name).apply()
+        // 更新对应模型的 API Key 为当前 key
+        val modelKey = prefs.getString("api_key_$name", null)
+            ?: prefs.getString("api_key", "") ?: ""
+        prefs.edit().putString("api_key", modelKey).apply()
+        _uiState.update { it.copy(selectedModel = name, showModelPicker = false) }
     }
 
     // === API Key 弹窗 ===
-    fun showApiKeyDialog() { _uiState.update { it.copy(showApiKeyDialog = true) } }
+    fun showApiKeyDialogFor(model: String) { _uiState.update { it.copy(showApiKeyDialog = true, apiKeyModelName = model) } }
     fun dismissApiKeyDialog() { _uiState.update { it.copy(showApiKeyDialog = false) } }
     fun saveApiKey(key: String) {
-        prefs.edit().putString("api_key", key).apply()
-        _uiState.update { it.copy(showApiKeyDialog = false) }
+        val model = _uiState.value.apiKeyModelName.ifBlank { _uiState.value.selectedModel }
+        if (key.isNotBlank()) {
+            prefs.edit().putString("api_key_$model", key).apply()
+            prefs.edit().putString("api_key", key).apply()
+            prefs.edit().putString("model_name", model).apply()
+            _uiState.update { it.copy(showApiKeyDialog = false, selectedModel = model) }
+        }
     }
 
     // === 文件上传 ===
