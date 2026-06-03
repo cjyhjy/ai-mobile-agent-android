@@ -1,77 +1,85 @@
 package com.example.aimobileagent.ui.screen.chat
 
+import android.content.SharedPreferences
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aimobileagent.data.remote.StreamEvent
 import com.example.aimobileagent.data.remote.StreamingLLMClient
 import com.example.aimobileagent.domain.model.Task
-import com.example.aimobileagent.domain.model.TaskStatus
-import com.example.aimobileagent.domain.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ChatUiState(
     val inputText: String = "",
     val currentTask: Task? = null,
     val isProcessing: Boolean = false,
-    val streamingText: String = "",     // 流式实时文本
+    val streamingText: String = "",
     val messages: List<ChatMessage> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+    val showModelPicker: Boolean = false,
+    val showApiKeyDialog: Boolean = false,
+    val selectedModel: String = "deepseek-chat",
+    val availableModels: List<String> = listOf("deepseek-chat", "deepseek-v4-pro", "deepseek-v4-flash"),
+    val pendingFileUri: Uri? = null
 )
 
 data class ChatMessage(
     val text: String,
     val isFromUser: Boolean,
     val isThinking: Boolean = false,
-    val isStreaming: Boolean = false,   // 正在流式输出中
+    val isStreaming: Boolean = false,
+    val attachmentName: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val streamingClient: StreamingLLMClient,
-    private val taskRepository: TaskRepository
+    private val prefs: SharedPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    // 对话历史 (role, content)
     private val conversationHistory = mutableListOf<Pair<String, String>>()
+    private var streamJob: Job? = null
 
-    fun onInputChanged(text: String) {
-        _uiState.update { it.copy(inputText = text, error = null) }
+    init {
+        val savedModel = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
+        _uiState.update { it.copy(selectedModel = savedModel) }
     }
+
+    fun onInputChanged(text: String) { _uiState.update { it.copy(inputText = text, error = null) } }
 
     fun sendCommand() {
         val command = _uiState.value.inputText.trim()
-        if (command.isBlank()) return
+        val fileUri = _uiState.value.pendingFileUri
+        if (command.isBlank() && fileUri == null) return
 
-        android.util.Log.e("ChatVM", "发送: $command")
-
-        // 保存用户消息到历史
-        conversationHistory.add("user" to command)
+        val displayText = if (command.isNotBlank()) command else "[文件]"
+        conversationHistory.add("user" to displayText)
 
         _uiState.update { state ->
-            state.copy(
-                inputText = "",
-                isProcessing = true,
-                error = null,
-                streamingText = "",
+            state.copy(inputText = "", isProcessing = true, error = null, streamingText = "",
+                pendingFileUri = null,
                 messages = state.messages +
-                    ChatMessage(text = command, isFromUser = true) +
-                    ChatMessage(text = "", isFromUser = false, isThinking = true)
-            )
+                    ChatMessage(text = displayText, isFromUser = true, attachmentName = null) +
+                    ChatMessage(text = "", isFromUser = false, isThinking = true))
         }
 
-        viewModelScope.launch {
+        streamJob = viewModelScope.launch {
             try {
-                streamingClient.streamChat(command, conversationHistory.toList())
-                    .collect { event ->
-                        handleStreamEvent(event)
-                    }
+                streamingClient.streamChat(displayText, conversationHistory.toList())
+                    .collect { event -> handleStreamEvent(event) }
+            } catch (e: CancellationException) {
+                // 用户中止，保留已输出的文本
+                _uiState.update { state ->
+                    val clean = state.messages.filter { !it.isThinking }
+                    state.copy(isProcessing = false, error = null, messages = clean)
+                }
             } catch (e: Exception) {
                 android.util.Log.e("ChatVM", "流式失败: ${e.message}", e)
                 _uiState.update { state ->
@@ -82,43 +90,54 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun stopStreaming() {
+        streamJob?.cancel()
+        streamJob = null
+    }
+
+    // === 模型选择 ===
+    fun toggleModelPicker() { _uiState.update { it.copy(showModelPicker = !it.showModelPicker) } }
+    fun selectModel(model: String) {
+        prefs.edit().putString("model_name", model).apply()
+        _uiState.update { it.copy(selectedModel = model, showModelPicker = false) }
+    }
+
+    // === API Key 弹窗 ===
+    fun showApiKeyDialog() { _uiState.update { it.copy(showApiKeyDialog = true) } }
+    fun dismissApiKeyDialog() { _uiState.update { it.copy(showApiKeyDialog = false) } }
+    fun saveApiKey(key: String) {
+        prefs.edit().putString("api_key", key).apply()
+        _uiState.update { it.copy(showApiKeyDialog = false) }
+    }
+
+    // === 文件上传 ===
+    fun onFileSelected(uri: Uri?, fileName: String, content: String) {
+        if (uri == null || content.isBlank()) return
+        _uiState.update { state ->
+            val ctxMsg = "文件: $fileName\n内容:\n${content.take(2000)}"
+            state.copy(inputText = ctxMsg, pendingFileUri = uri,
+                messages = state.messages + ChatMessage(text = "📎 $fileName", isFromUser = true, attachmentName = fileName))
+        }
+    }
+
     private fun handleStreamEvent(event: StreamEvent) {
         when (event) {
-            is StreamEvent.Thinking -> {
-                // thinking 状态已在 sendCommand 中设置
-            }
+            is StreamEvent.Thinking -> {}
             is StreamEvent.Chunk -> {
-                // 实时更新流式文本
                 _uiState.update { state ->
                     val msgs = state.messages.toMutableList()
-                    // 找到 thinking 消息，替换为 streaming 消息
                     val idx = msgs.indexOfLast { it.isThinking || it.isStreaming }
-                    if (idx >= 0) {
-                        msgs[idx] = ChatMessage(
-                            text = event.fullText,
-                            isFromUser = false,
-                            isStreaming = true
-                        )
-                    }
+                    if (idx >= 0) msgs[idx] = ChatMessage(text = event.fullText, isFromUser = false, isStreaming = true)
                     state.copy(messages = msgs, streamingText = event.fullText)
                 }
             }
             is StreamEvent.Done -> {
                 val resp = event.response
                 conversationHistory.add("assistant" to (resp.reply.ifBlank { resp.rawText }))
-
                 _uiState.update { state ->
                     val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
-                    val replyText = if (resp.mode == "task") {
-                        "📋 任务: ${resp.intent}, ${resp.reply}"
-                    } else {
-                        resp.reply.ifBlank { resp.rawText }
-                    }
-                    state.copy(
-                        isProcessing = false,
-                        streamingText = "",
-                        messages = clean + ChatMessage(text = replyText, isFromUser = false)
-                    )
+                    state.copy(isProcessing = false, streamingText = "",
+                        messages = clean + ChatMessage(text = resp.reply.ifBlank { resp.rawText }, isFromUser = false))
                 }
             }
             is StreamEvent.Error -> {
@@ -130,7 +149,5 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun clearError() {
-        _uiState.update { it.copy(error = null) }
-    }
+    fun clearError() { _uiState.update { it.copy(error = null) } }
 }
