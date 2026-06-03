@@ -79,19 +79,51 @@ class LLMResponseParser {
     private fun extractJson(text: String): String? {
         val t = text.trim()
 
-        // 1. Markdown 代码块 ```
+        // 1. Markdown ```json 代码块
         val md = Regex("```(?:json)?\\s*\\n?([\\s\\S]*?)\\n?```")
         md.find(t)?.let { return it.groupValues[1].trim() }
 
-        // 2. 直接找第一个完整的 JSON 对象
-        val start = t.indexOf('{')
-        if (start < 0) return null
+        // 2. 用 "mode" 定位 JSON —— 从 mode 位置逐字符回溯找真正的 {
+        val modeMarker = Regex("\"mode\"\\s*:\\s*\"(chat|task)\"")
+        val modeMatch = modeMarker.find(t)
+        if (modeMatch != null) {
+            val modePos = modeMatch.range.first
+            // 逐字符回溯，跳过字符串内容，找 JSON 的 {
+            var depth = 0
+            var inStr = false
+            var esc = false
+            for (i in modePos - 1 downTo 0) {
+                val c = t[i]
+                if (esc) { esc = false; continue }
+                if (c == '\\' && inStr) { esc = true; continue }
+                if (c == '"') { inStr = !inStr; continue }
+                if (inStr) continue
+                when (c) {
+                    '}' -> depth++
+                    '{' -> if (depth == 0) return extractBalancedJson(t, i)
+                           else depth--
+                }
+            }
+        }
 
+        // 3. 搜索 {"mode" 或 {"intent" 字面
+        for (marker in listOf("{\"mode\"", "{\"intent\"")) {
+            val idx = t.indexOf(marker)
+            if (idx >= 0) return extractBalancedJson(t, idx)
+        }
+
+        // 4. 兜底
+        val start = t.indexOf('{')
+        if (start >= 0) return extractBalancedJson(t, start)
+        return null
+    }
+
+    private fun extractBalancedJson(text: String, startIdx: Int): String? {
         var depth = 0
         var inString = false
         var escape = false
-        for (i in start until t.length) {
-            val c = t[i]
+        for (i in startIdx until text.length) {
+            val c = text[i]
             if (escape) { escape = false; continue }
             if (c == '\\' && inString) { escape = true; continue }
             if (c == '"') { inString = !inString; continue }
@@ -100,7 +132,7 @@ class LLMResponseParser {
                 '{' -> depth++
                 '}' -> {
                     depth--
-                    if (depth == 0) return t.substring(start, i + 1)
+                    if (depth == 0) return text.substring(startIdx, i + 1)
                 }
             }
         }

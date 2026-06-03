@@ -94,8 +94,25 @@ class LLMRepositoryImpl @Inject constructor(
 
         Log.e("LLMRepository", "LLM 原始响应: ${content.take(500)}")
 
-        // 5. 解析任务计划
-        val planDto = responseParser.parse(content)
+        // 5. 解析任务计划（失败时用全文当聊天回复）
+        val planDto = try {
+            responseParser.parse(content)
+        } catch (e: LLMException) {
+            Log.e("LLMRepository", "JSON解析失败，使用全文回复: ${e.message?.take(100)}")
+            // 兜底：把 LLM 返回的全文当作聊天回复
+            val cleaned = content
+                .replace(Regex("```[\\s\\S]*?```"), "")  // 去代码块
+                .trim()
+                .take(1500)  // 限制长度
+            return Task(
+                userCommand = userCommand,
+                llmRawResponse = content,
+                intent = "chat:$cleaned",
+                confidence = 0.5f,
+                steps = emptyList(),
+                appsInvolved = emptyList()
+            )
+        }
 
         // 6. 转换为 Domain 模型
         // 聊天模式：有 reply 内容 或 mode=chat → 作为对话回复
