@@ -59,13 +59,15 @@ data class Usage(
 
 @Serializable
 data class TaskPlanDto(
+    val mode: String = "task",  // "task" | "chat"
     val intent: String = "",
     val confidence: Double = 0.0,
     @SerialName("needs_confirmation")
     val needsConfirmation: Boolean = true,
     @SerialName("estimated_duration_seconds")
     val estimatedDurationSeconds: Int = 0,
-    val steps: List<StepDto> = emptyList()
+    val steps: List<StepDto> = emptyList(),
+    val reply: String = ""     // 聊天模式的回复
 )
 
 @Serializable

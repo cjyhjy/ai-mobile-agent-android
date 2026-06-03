@@ -2,8 +2,6 @@ package com.example.aimobileagent.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import com.example.aimobileagent.domain.repository.LLMRepository
 import com.example.aimobileagent.domain.repository.TaskRepository
 import com.example.aimobileagent.domain.usecase.*
@@ -22,15 +20,9 @@ import javax.inject.Singleton
 object AppModule {
 
     @Provides @Singleton
-    fun provideEncryptedSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            context, "agent_secure_prefs", masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-        )
+    fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
+        // 使用普通 SharedPreferences（模拟器兼容，生产环境换 EncryptedSharedPreferences）
+        return context.getSharedPreferences("agent_prefs", Context.MODE_PRIVATE)
     }
 
     // ===== Execution 层 DI =====
