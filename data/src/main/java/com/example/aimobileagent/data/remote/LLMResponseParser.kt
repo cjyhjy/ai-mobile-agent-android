@@ -31,7 +31,17 @@ class LLMResponseParser {
     fun parse(rawContent: String): TaskPlanDto {
         android.util.Log.e("LLMParser", "原始响应: ${rawContent.take(300)}")
         val extracted = extractJson(rawContent)
-            ?: throw LLMException("无法从LLM响应中提取JSON，原始响应: ${rawContent.take(300)}")
+        if (extracted == null) {
+            // 容错：尝试正则提取 reply 字段
+            val replyMatch = Regex("\"reply\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").find(rawContent)
+            if (replyMatch != null) {
+                val reply = replyMatch.groupValues[1]
+                    .replace("\\n", "\n").replace("\\t", "\t").replace("\\\"", "\"")
+                android.util.Log.e("LLMParser", "正则提取reply: ${reply.take(100)}")
+                return TaskPlanDto(mode = "chat", reply = reply, steps = emptyList())
+            }
+            throw LLMException("无法从LLM响应中提取JSON，原始响应: ${rawContent.take(300)}")
+        }
 
         android.util.Log.e("LLMParser", "提取JSON: ${extracted.take(200)}")
 
