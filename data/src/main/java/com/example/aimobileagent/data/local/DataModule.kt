@@ -14,6 +14,7 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.example.aimobileagent.data.remote.DeepSeekApiService
 import com.example.aimobileagent.data.remote.LLMResponseParser
 import com.example.aimobileagent.data.remote.PromptTemplateEngine
+import com.example.aimobileagent.data.remote.StreamingLLMClient
 import com.example.aimobileagent.data.repository.LLMRepositoryImpl
 import com.example.aimobileagent.data.repository.TaskRepositoryImpl
 import com.example.aimobileagent.domain.repository.LLMRepository
@@ -67,12 +68,12 @@ object DataModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)  // 流式需要长超时
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
