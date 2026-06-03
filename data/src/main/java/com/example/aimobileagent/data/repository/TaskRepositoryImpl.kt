@@ -44,9 +44,12 @@ class TaskRepositoryImpl @Inject constructor(
         val entity = TaskEntity.fromDomain(task)
         taskDao.insertTask(entity)
 
-        // 同时保存步骤
+        // 同时保存步骤（自动修正空的 taskId）
         if (task.steps.isNotEmpty()) {
-            val stepEntities = task.steps.map { StepEntity.fromDomain(it) }
+            val fixedSteps = task.steps.map { step ->
+                if (step.taskId.isBlank()) step.copy(taskId = task.id) else step
+            }
+            val stepEntities = fixedSteps.map { StepEntity.fromDomain(it) }
             taskDao.insertSteps(stepEntities)
         }
     }
