@@ -19,14 +19,18 @@ class StreamingLLMClient @Inject constructor(
 ) {
     fun streamChat(
         userMessage: String,
-        history: List<Pair<String, String>> = emptyList()
+        history: List<Pair<String, String>> = emptyList(),
+        availableApps: List<String> = emptyList()
     ): Flow<StreamEvent> = callbackFlow {
         val apiKey = prefs.getString("api_key", "") ?: ""
         val model = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
 
         if (apiKey.isBlank()) { trySend(StreamEvent.Error("API Key未配置")); close(); return@callbackFlow }
 
-        val sysPrompt = "你是智能手机助手，能聊天也能帮执行手机任务。用中文回复，支持Markdown。"
+        val appListText = if (availableApps.isNotEmpty())
+            "\n\n可操作的手机App:\n${availableApps.joinToString(", ")}\n\n当用户想操作手机时，用JSON回复: {\"mode\":\"task\",\"intent\":\"描述\",\"steps\":[{\"order\":1,\"action\":\"open_app\",\"target\":\"包名\",\"params\":{}}]}。其他时候正常聊天。"
+        else ""
+        val sysPrompt = "你是智能手机助手，能聊天也能帮执行手机任务。用中文回复，支持Markdown。$appListText"
 
         val sb = StringBuilder()
         sb.append("""{"role":"system","content":"$sysPrompt"}""")

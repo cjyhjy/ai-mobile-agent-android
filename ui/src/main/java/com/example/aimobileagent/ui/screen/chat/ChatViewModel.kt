@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.aimobileagent.data.remote.StreamEvent
 import com.example.aimobileagent.data.remote.StreamingLLMClient
 import com.example.aimobileagent.domain.model.Task
+import com.example.aimobileagent.domain.repository.AppCapabilityRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -51,8 +52,12 @@ data class ChatMessage(
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val streamingClient: StreamingLLMClient,
-    private val prefs: SharedPreferences
+    private val prefs: SharedPreferences,
+    private val appCapRepo: AppCapabilityRepository
 ) : ViewModel() {
+
+    // 缓存的已注册 App 包名
+    private var registeredApps: List<String> = emptyList()
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -63,6 +68,11 @@ class ChatViewModel @Inject constructor(
     init {
         val savedModel = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
         _uiState.update { it.copy(selectedModel = savedModel) }
+        // 加载已注册 App
+        viewModelScope.launch {
+            try { registeredApps = appCapRepo.getAll().map { it.packageName } }
+            catch (_: Exception) { registeredApps = emptyList() }
+        }
     }
 
     fun onInputChanged(text: String) { _uiState.update { it.copy(inputText = text, error = null) } }
@@ -85,7 +95,7 @@ class ChatViewModel @Inject constructor(
 
         streamJob = viewModelScope.launch {
             try {
-                streamingClient.streamChat(displayText, conversationHistory.toList())
+                streamingClient.streamChat(displayText, conversationHistory.toList(), registeredApps)
                     .collect { event -> handleStreamEvent(event) }
             } catch (e: CancellationException) {
                 // 用户中止，保留已输出的文本
