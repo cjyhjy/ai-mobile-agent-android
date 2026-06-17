@@ -7,7 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.aimobileagent.data.remote.StreamEvent
 import com.example.aimobileagent.data.remote.StreamingLLMClient
 import com.example.aimobileagent.domain.model.Task
+import com.example.aimobileagent.domain.model.Step
+import com.example.aimobileagent.domain.model.TaskStatus
 import com.example.aimobileagent.domain.repository.AppCapabilityRepository
+import com.example.aimobileagent.domain.repository.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -53,7 +56,8 @@ data class ChatMessage(
 class ChatViewModel @Inject constructor(
     private val streamingClient: StreamingLLMClient,
     private val prefs: SharedPreferences,
-    private val appCapRepo: AppCapabilityRepository
+    private val appCapRepo: AppCapabilityRepository,
+    private val taskRepository: TaskRepository
 ) : ViewModel() {
 
     // 缓存的已注册 App 包名
@@ -68,9 +72,9 @@ class ChatViewModel @Inject constructor(
     init {
         val savedModel = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
         _uiState.update { it.copy(selectedModel = savedModel) }
-        // 加载已注册 App
+        // 加载已注册 App（含名称，帮助 LLM 理解"火影忍者"→"com.tencent.KiHan"）
         viewModelScope.launch {
-            try { registeredApps = appCapRepo.getAll().map { it.packageName } }
+            try { registeredApps = appCapRepo.getAll().map { "${it.appName}(${it.packageName})" } }
             catch (_: Exception) { registeredApps = emptyList() }
         }
     }
@@ -164,7 +168,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun handleStreamEvent(event: StreamEvent) {
+    private suspend fun handleStreamEvent(event: StreamEvent) {
         when (event) {
             is StreamEvent.Thinking -> {}
             is StreamEvent.Chunk -> {
@@ -177,11 +181,71 @@ class ChatViewModel @Inject constructor(
             }
             is StreamEvent.Done -> {
                 val resp = event.response
-                conversationHistory.add("assistant" to (resp.reply.ifBlank { resp.rawText }))
-                _uiState.update { state ->
-                    val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
-                    state.copy(isProcessing = false, streamingText = "",
-                        messages = clean + ChatMessage(text = resp.reply.ifBlank { resp.rawText }, isFromUser = false))
+                if (resp.mode == "task" && resp.stepsJson.isNotBlank()) {
+                    // === 任务模式：创建 Task，展示计划卡片 ===
+                    try {
+                        val stepsArr = org.json.JSONArray(resp.stepsJson)
+                        val domainSteps = (0 until stepsArr.length()).map { i ->
+                            val s = stepsArr.getJSONObject(i)
+                            val action = s.optString("action", "")
+                            val target = s.optString("target", null)
+                            val order = s.optInt("order", i + 1)
+                            // 解析 params：可能是数字(0)、空对象({})、或真实 map
+                            val paramsJson = s.opt("params")
+                            val params = when (paramsJson) {
+                                is org.json.JSONObject -> {
+                                    val map = mutableMapOf<String, String>()
+                                    paramsJson.keys().forEach { key -> map[key] = paramsJson.optString(key, "") }
+                                    map
+                                }
+                                else -> emptyMap()
+                            }
+                            val targetApp = if (action == "open_app") target else null
+                            val targetElement = if (action != "open_app") target else null
+                            Step(taskId = "", orderIndex = order, actionType = action,
+                                targetApp = targetApp, targetElement = targetElement, params = params)
+                        }
+                        val task = Task(
+                            userCommand = conversationHistory.lastOrNull { it.first == "user" }?.second ?: resp.intent,
+                            llmRawResponse = resp.rawText,
+                            intent = resp.intent,
+                            confidence = 1.0f,
+                            steps = domainSteps,
+                            status = TaskStatus.READY,
+                            appsInvolved = domainSteps.mapNotNull { it.targetApp }.distinct()
+                        )
+                        taskRepository.saveTask(task)
+                        // 修正 taskId 后重新保存
+                        val fixedSteps = domainSteps.map { it.copy(taskId = task.id) }
+                        val finalTask = task.copy(steps = fixedSteps)
+                        taskRepository.saveTask(finalTask)
+                        // 显示计划卡片 + 摘要消息
+                        conversationHistory.add("assistant" to "📋 任务计划: ${resp.intent}")
+                        _uiState.update { state ->
+                            val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                            state.copy(isProcessing = false, streamingText = "",
+                                currentTask = finalTask,
+                                messages = clean + ChatMessage(
+                                    text = "📋 已生成任务计划：${resp.intent}\n共 ${domainSteps.size} 步，请在下方确认执行",
+                                    isFromUser = false))
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ChatVM", "解析task步骤失败: ${e.message}", e)
+                        conversationHistory.add("assistant" to (resp.reply.ifBlank { resp.rawText }))
+                        _uiState.update { state ->
+                            val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                            state.copy(isProcessing = false, streamingText = "",
+                                messages = clean + ChatMessage(text = resp.reply.ifBlank { resp.rawText }, isFromUser = false))
+                        }
+                    }
+                } else {
+                    // === 聊天模式 ===
+                    conversationHistory.add("assistant" to (resp.reply.ifBlank { resp.rawText }))
+                    _uiState.update { state ->
+                        val clean = state.messages.filter { !it.isThinking && !it.isStreaming }
+                        state.copy(isProcessing = false, streamingText = "",
+                            messages = clean + ChatMessage(text = resp.reply.ifBlank { resp.rawText }, isFromUser = false))
+                    }
                 }
             }
             is StreamEvent.Error -> {

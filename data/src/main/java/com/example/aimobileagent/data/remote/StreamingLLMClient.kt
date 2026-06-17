@@ -28,7 +28,7 @@ class StreamingLLMClient @Inject constructor(
         if (apiKey.isBlank()) { trySend(StreamEvent.Error("API Key未配置")); close(); return@callbackFlow }
 
         val appListText = if (availableApps.isNotEmpty())
-            "\n\n可操作的手机App:\n${availableApps.joinToString(", ")}\n\n当用户想操作手机时，用JSON回复: {\"mode\":\"task\",\"intent\":\"描述\",\"steps\":[{\"order\":1,\"action\":\"open_app\",\"target\":\"包名\",\"params\":{}}]}。其他时候正常聊天。"
+            "\n\n可操作的手机App（格式: 应用名(包名)）:\n${availableApps.joinToString(", ")}\n\n当用户想操作手机时，用JSON回复: {\"mode\":\"task\",\"intent\":\"描述\",\"steps\":[{\"order\":1,\"action\":\"open_app\",\"target\":\"包名\",\"params\":{}}]}。target字段填括号里的包名。其他时候正常聊天。"
         else ""
         val sysPrompt = "你是智能手机助手，能聊天也能帮执行手机任务。用中文回复，支持Markdown。$appListText"
 
@@ -104,9 +104,31 @@ class StreamingLLMClient @Inject constructor(
 
     private fun parseResponse(text: String): ParsedResponse {
         val modeM = Regex(""""mode"\s*:\s*"(chat|task)"""").find(text)
+        val mode = modeM?.groupValues?.get(1) ?: "chat"
+
+        if (mode == "task") {
+            // 提取 intent
+            val intentM = Regex(""""intent"\s*:\s*"((?:[^"\\]|\\.)*)"""").find(text)
+            val intent = intentM?.groupValues?.get(1)?.replace("\\n","\n")?.replace("\\\"","\"") ?: ""
+
+            // 提取 steps JSON 数组（用 org.json 验证格式）
+            val stepsJson = try {
+                val jsonObj = org.json.JSONObject(text)
+                val stepsArr = jsonObj.optJSONArray("steps")
+                stepsArr?.toString() ?: ""
+            } catch (_: Exception) {
+                // 回退：正则提取 steps 数组
+                val stepsM = Regex(""""steps"\s*:\s*(\[[\s\S]*?\])\s*\}""").find(text)
+                stepsM?.groupValues?.get(1)?.trim() ?: ""
+            }
+            return ParsedResponse(mode = "task", intent = intent, rawText = text, stepsJson = stepsJson)
+        }
+
+        // chat 模式
+        val replyM = Regex(""""reply"\s*:\s*"((?:[^"\\]|\\.)*)"""").find(text)
+        val reply = replyM?.groupValues?.get(1)?.replace("\\n","\n") ?: text
         if (modeM != null) {
-            val replyM = Regex(""""reply"\s*:\s*"((?:[^"\\]|\\.)*)"""").find(text)
-            return ParsedResponse(modeM.groupValues[1], replyM?.groupValues?.get(1)?.replace("\\n","\n") ?: text)
+            return ParsedResponse(mode = "chat", reply = reply, rawText = text)
         }
         return ParsedResponse("chat", text)
     }
@@ -118,4 +140,4 @@ sealed class StreamEvent {
     data class Done(val response: ParsedResponse) : StreamEvent()
     data class Error(val message: String) : StreamEvent()
 }
-data class ParsedResponse(val mode: String, val reply: String = "", val intent: String = "", val rawText: String = "")
+data class ParsedResponse(val mode: String, val reply: String = "", val intent: String = "", val rawText: String = "", val stepsJson: String = "")
