@@ -40,10 +40,12 @@ class SearchExecutor @Inject constructor() : StepExecutor {
             return StepResult.Failure("找不到搜索框")
         }
         try {
-            service.performClick(searchNode)
+            val clicked = service.performClick(searchNode)
+            if (!clicked) return StepResult.Failure("点击搜索框失败")
             kotlinx.coroutines.delay(300)
-            service.setText(searchNode, query)
-            return StepResult.Success("已搜索 '$query'")
+            val typed = service.setText(searchNode, query)
+            return if (typed) StepResult.Success("已搜索 '$query'")
+            else StepResult.Failure("输入搜索词失败")
         } finally {
             searchNode.recycle()
         }
