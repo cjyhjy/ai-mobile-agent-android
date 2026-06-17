@@ -7,7 +7,7 @@
 
 An on-device AI assistant that automates Android phone operations through natural language commands — powered by **Large Language Models** and **AccessibilityService**.
 
-> 🇨🇳 中文用户请见下方 [功能说明](#-功能说明)
+> 📖 **详细文档**: [架构文档](docs/ARCHITECTURE.md) | [开发指南](docs/DEVELOPMENT.md) | [AI 使用说明](docs/AI_USAGE.md)
 
 ---
 
@@ -78,16 +78,15 @@ app ──► domain ◄── data
 
 ## ✨ Features
 
-- 🗣️ **Natural Language to Action** — Type or speak a command, AI breaks it down and executes
-- 🔄 **OTAV Agent Loop** — Observe → Think → Act → Verify with retry and fallback
-- 🛡️ **Safety Protection** — Auto-detects payment/password screens, warns before sensitive actions
-- 💬 **Chat Mode** — General-purpose AI chatbot with SSE streaming, multi-turn conversation
-- 🎨 **Dark Theme** — Slate + Indigo color palette, Material 3 Design
-- 📝 **Task History** — All tasks persisted locally, viewable and replayable
-- 🧠 **Multi-Model** — DeepSeek / OpenAI / Anthropic / Google, independent API keys per model
-- 🎤 **Voice Input** — Speech recognition via Android `SpeechRecognizer`
-- 📱 **App Management** — Register which apps the agent can control
-- 🧩 **Memory System** — Learns from successful executions to improve future prompts
+- 🗣️ **自然语言操控** — 输入指令，AI 自动分解为多步操作并执行
+- 🔄 **OTAV Agent 循环** — Observe→Think→Act→Verify，失败自动重试
+- 🛡️ **安全保护** — 自动检测支付/密码页面，危险操作立即停止
+- 💬 **双模式** — 聊天模式（SSE 流式多轮对话）+ 任务模式（JSON 步骤执行）
+- 🎨 **暗色主题** — Slate + Indigo 色系，Material 3 Design
+- 📝 **任务历史** — 本地 Room 持久化，可查看和重放
+- 🧠 **7 模型支持** — DeepSeek / OpenAI / Anthropic / Google，独立 API Key
+- 📱 **App 管理** — 注册能力目录，任意 App 可操控
+- 📋 **任务计划卡片** — LLM 返回任务时自动展示步骤，确认后执行
 
 ---
 
@@ -192,14 +191,23 @@ Tests cover: chat mode, task mode, settings page, and API connectivity.
 
 ---
 
-## 🔮 Roadmap
+## 🔮 版本历程
 
-- [x] Multi-model support (DeepSeek, OpenAI, Anthropic, Google)
-- [x] Voice input via SpeechRecognizer
-- [x] Memory / personalization system
-- [ ] Screenshot-based vision analysis (Android 14+ multimodal)
-- [ ] Physical device end-to-end testing
-- [ ] HarmonyOS port (in progress at [ai-mobile-agent-harmonyos](https://github.com/cjyhjy/ai-mobile-agent-harmonyos))
+| 版本 | 日期 | 内容 |
+|------|------|------|
+| v2.3.0 | 06-17 | Task 路由修复：LLM 返回 task JSON 自动创建计划卡片 |
+| v2.2.2 | 06-16 | JSON 转义修复：用 org.json 替换手工拼接 |
+| v2.2 | 06-15 | 7 模型支持 + 独立 API Key + 文件上传 |
+| v2.1 | 06-10 | SSE 流式修复 + 中止对话 + 模型选择 |
+| v2.0 | 06-08 | 流式响应 + 多轮对话上下文 |
+| v1.x | 06-02~07 | 项目搭建 + Room + AccessibilityService + OTAV 循环 |
+
+## 🔮 后续计划
+
+- [ ] 鸿蒙版本功能同步 ([ai-mobile-agent-harmonyos](https://github.com/cjyhjy/ai-mobile-agent-harmonyos))
+- [ ] 多步骤复杂任务（跨 App 协同）
+- [ ] 截图视觉分析（Android 14+ 多模态）
+- [ ] 真机完整测试
 
 ---
 

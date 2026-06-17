@@ -48,27 +48,75 @@
 - 决策：UI 采用暗色主题（Slate色系 + Indigo主色调）
 - 理由：科技感 + AI 产品常见风格，Material 3 暗色支持成熟
 
-## 项目当前状态
+## 项目当前状态（v2.3.0，2026-06-17）
 
 ### Android 端
-- **代码量**：约 4000+ 行 Kotlin（60+ 文件）
-- **APK**：`app/build/outputs/apk/debug/app-debug.apk` (59MB)
-- **编译**：✅ BUILD SUCCESSFUL
+- **代码量**：约 4500+ 行 Kotlin（60+ 文件）
+- **APK**：`app/build/outputs/apk/debug/app-debug.apk`
+- **编译**：✅ BUILD SUCCESSFUL (JDK 21)
 - **路径**：`D:\ai-mobile-agent-android\`
+- **已验证**：聊天模式、任务规划、任务执行（打开 App）
 
 ### HarmonyOS 端
 - **代码量**：约 600 行 ArkTS + 配置文件
 - **路径**：`D:\ai-mobile-agent-harmonyos\`
-- **架构**：镜像 Android 端 Clean Architecture（Models / UseCases / Data / Execution / Pages）
+- **架构**：镜像 Android 端 Clean Architecture
+- **状态**：基础聊天功能完成，待接入 AccessibilityAbility + 流式 SSE
 
 ### 5 项 GitHub 参考改进
 | # | 改进 | 来源 |
 |---|------|------|
-| 1 | 安全检测（支付/密码页面自动停止） | Roubao |
+| 1 | 安全检测（支付/密码页面自动停止）| Roubao |
 | 2 | Agent OTAV 循环 | ApkClaw / Droidrun |
-| 3 | 语音输入（SpeechRecognizer） | Panda |
-| 4 | 屏幕视觉（截图+多模态 LLM） | Droidrun |
-| 5 | 记忆系统（用户偏好） | Panda |
+| 3 | 语音输入（SpeechRecognizer）| Panda |
+| 4 | 屏幕视觉（截图+多模态 LLM）| Droidrun |
+| 5 | 记忆系统（用户偏好）| Panda |
+
+---
+
+## v2.x 版本记录
+
+### v2.3.0 (06-17) — Task 路由修复
+- 修复：LLM 返回 task JSON 时只显示文本，不触发任务执行
+- 新增：ChatViewModel 检测 `mode=="task"` 自动创建 Task + TaskPlanCard
+- 改进：App 列表格式从"包名"改为"应用名(包名)"，帮助 LLM 匹配
+- 修复：无障碍服务在 Mumu 上用 `content insert` 方式绑定
+
+### v2.2.2 (06-16) — JSON 转义修复
+- 修复：手动 String.replace() 遗漏 `\r` 导致 API 400
+- 迁移：StreamingLLMClient 用 `org.json.JSONObject` 构建请求体
+- 新增：`ParsedResponse.stepsJson` 字段
+
+### v2.2.1 (06-15) — App 列表注入
+- 新增：流式提示词包含已注册 App 列表
+- 修复：CLI 路径 taskId 自动修正
+
+### v2.2 (06-15) — 7 模型 + API Key
+- 新增：7 个模型（DeepSeek×2, OpenAI×2, Anthropic×2, Google×1）
+- 新增：每个模型独立 API Key 存储
+- 新增：文件上传功能
+
+### v2.1 (06-10) — 流式修复
+- 修复：callbackFlow 默认缓冲区溢出导致流式显示卡住
+- 新增：50ms 节流 + send() 替代 trySend()
+- 新增：中止对话按钮
+- 新增：模型选择器 Bottom Sheet
+
+### v2.0 (06-08) — 流式响应
+- 新增：OkHttp SSE 流式读取
+- 新增：多轮对话上下文（conversationHistory）
+- 修复：JSON 提取 4 级回退策略
+
+### v1.x (06-02~07) — 项目搭建
+- 5 模块 Clean Architecture 搭建
+- Room 数据库（Task/Step/AppCapability）
+- Retrofit + DeepSeek API 集成
+- AccessibilityService + 6 执行器
+- OTAV Agent 循环
+- Chat/TaskProgress/History/Settings 页面
+- JSON 解析容错
+
+---
 
 ### 编译过程中修复的问题
 1. AndroidManifest.xml 缺少 `xmlns:tools` 命名空间
@@ -77,12 +125,15 @@
 4. 多模块 KSP/Hilt 处理冲突（将 DI 集中到 app 模块）
 5. `Icons.Default` 部分图标 API 不存在
 6. Dagger 缺少 UseCase 的 `@Provides` 绑定
+7. EncryptedSharedPreferences SIGBUS → 普通 SharedPreferences
+8. `response_format: json_object` → null（DeepSeek 不兼容）
+9. 手动字符串 JSON 拼接有无控制字符转义问题 → org.json
 
 ### 待完成
-- 真机/模拟器部署测试
-- 鸿蒙端 DevEco Studio 编译验证
-- App 能力目录按真机 resourceId 调整
-- API Key 配置 (DeepSeek)
+- [ ] 多步骤复杂任务（跨 App 协同，如"发微信给xxx"）
+- [ ] 鸿蒙版本功能同步（流式 SSE + AccessibilityAbility）
+- [ ] 真机测试（无障碍服务 + 第三方 App 兼容）
+- [ ] 截图视觉分析
 
 ## 遇到的坑
 
