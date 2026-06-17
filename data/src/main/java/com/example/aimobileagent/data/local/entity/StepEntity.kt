@@ -37,9 +37,9 @@ data class StepEntity(
         /** Domain → Entity */
         fun fromDomain(step: Step): StepEntity {
             val paramsJson = if (step.params.isNotEmpty()) {
-                step.params.entries.joinToString(",", "{", "}") { (k, v) ->
-                    "\"$k\":\"$v\""
-                }
+                val jsonObj = org.json.JSONObject()
+                step.params.forEach { (k, v) -> jsonObj.put(k, v) }
+                jsonObj.toString()
             } else "{}"
             return StepEntity(
                 id = step.id,
