@@ -32,16 +32,19 @@ class StreamingLLMClient @Inject constructor(
         else ""
         val sysPrompt = "你是智能手机助手，能聊天也能帮执行手机任务。用中文回复，支持Markdown。$appListText"
 
-        val sb = StringBuilder()
-        sb.append("""{"role":"system","content":"$sysPrompt"}""")
+        // 用 org.json 构建 body——自动转义所有控制字符
+        val msgs = org.json.JSONArray()
+        msgs.put(org.json.JSONObject().apply {
+            put("role", "system"); put("content", sysPrompt)
+        })
         for ((role, content) in history.takeLast(10)) {
-            val esc = content.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
-            sb.append(""",{"role":"$role","content":"$esc"}""")
+            msgs.put(org.json.JSONObject().apply { put("role", role); put("content", content) })
         }
-        val escUser = userMessage.replace("\\","\\\\").replace("\"","\\\"").replace("\n","\\n")
-        sb.append(""",{"role":"user","content":"$escUser"}""")
+        msgs.put(org.json.JSONObject().apply { put("role", "user"); put("content", userMessage) })
 
-        val body = """{"model":"$model","messages":[$sb],"stream":true}"""
+        val body = org.json.JSONObject().apply {
+            put("model", model); put("messages", msgs); put("stream", true)
+        }.toString()
 
         val req = Request.Builder()
             .url("https://api.deepseek.com/v1/chat/completions")
