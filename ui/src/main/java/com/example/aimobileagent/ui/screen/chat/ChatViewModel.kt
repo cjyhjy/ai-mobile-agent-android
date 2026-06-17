@@ -66,7 +66,7 @@ class ChatViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val conversationHistory = mutableListOf<Pair<String, String>>()
+    private val conversationHistory = java.util.Collections.synchronizedList(mutableListOf<Pair<String, String>>())
     private var streamJob: Job? = null
 
     init {
