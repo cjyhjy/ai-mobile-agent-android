@@ -59,13 +59,13 @@ class StreamingLLMClient @Inject constructor(
             close(); return@callbackFlow
         }
 
-        val body = resp.body
-        if (body == null) {
+        val respBody = resp.body
+        if (respBody == null) {
             trySend(StreamEvent.Error("API 响应体为空"))
             close(); return@callbackFlow
         }
 
-        val reader = BufferedReader(InputStreamReader(body.byteStream()))
+        val reader = BufferedReader(InputStreamReader(respBody.byteStream()))
         val fullText = StringBuilder()
         var line: String?
         var chunkCount = 0
