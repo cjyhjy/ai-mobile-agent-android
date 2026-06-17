@@ -34,7 +34,7 @@ class StepExecutorFactory @Inject constructor(
 
     override suspend fun recover(step: Step, error: String): StepResult {
         return when (step.actionType) {
-            "tap", "type", "search" -> {
+            TapElementExecutor.ACTION, TypeTextExecutor.ACTION, SearchExecutor.ACTION -> {
                 AgentAccessibilityService.instance?.waitForStable(2000L)
                 getExecutor(step.actionType)?.execute(step)
                     ?: StepResult.Failure("恢复失败")
