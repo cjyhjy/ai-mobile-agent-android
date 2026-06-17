@@ -59,32 +59,36 @@ class SafetyChecker {
 
         val root = service.getRoot() ?: return SafetyResult(true, "无法获取屏幕内容")
 
-        val allTexts = collectAllTexts(root)
-        val fullText = allTexts.joinToString(" ")
+        try {
+            val allTexts = collectAllTexts(root)
+            val fullText = allTexts.joinToString(" ")
 
-        // 检测危险关键词
-        for (keyword in DANGER_KEYWORDS) {
-            if (fullText.contains(keyword, ignoreCase = true)) {
-                return SafetyResult(
-                    isSafe = false,
-                    reason = "检测到敏感内容: \"$keyword\"。涉及支付/密码/隐私的操作已自动停止，请手动完成。",
-                    severity = Severity.DANGER
-                )
+            // 检测危险关键词
+            for (keyword in DANGER_KEYWORDS) {
+                if (fullText.contains(keyword, ignoreCase = true)) {
+                    return SafetyResult(
+                        isSafe = false,
+                        reason = "检测到敏感内容: \"$keyword\"。涉及支付/密码/隐私的操作已自动停止，请手动完成。",
+                        severity = Severity.DANGER
+                    )
+                }
             }
-        }
 
-        // 检测警告关键词
-        for (keyword in WARNING_KEYWORDS) {
-            if (fullText.contains(keyword, ignoreCase = true)) {
-                return SafetyResult(
-                    isSafe = true,
-                    reason = "检测到: \"$keyword\"，可能需要你确认后继续。",
-                    severity = Severity.WARNING
-                )
+            // 检测警告关键词
+            for (keyword in WARNING_KEYWORDS) {
+                if (fullText.contains(keyword, ignoreCase = true)) {
+                    return SafetyResult(
+                        isSafe = true,
+                        reason = "检测到: \"$keyword\"，可能需要你确认后继续。",
+                        severity = Severity.WARNING
+                    )
+                }
             }
-        }
 
-        return SafetyResult(true, severity = Severity.SAFE)
+            return SafetyResult(true, severity = Severity.SAFE)
+        } finally {
+            root.recycle()
+        }
     }
 
     /**
@@ -94,10 +98,13 @@ class SafetyChecker {
     fun isPaymentScreen(): Boolean {
         val service = AgentAccessibilityService.instance ?: return false
         val root = service.getRoot() ?: return false
-        val texts = collectAllTexts(root).joinToString(" ")
-
-        val paymentKeywords = listOf("支付", "付款", "转账", "金额", "¥", "￥", "确认支付")
-        return paymentKeywords.any { texts.contains(it, ignoreCase = true) }
+        try {
+            val texts = collectAllTexts(root).joinToString(" ")
+            val paymentKeywords = listOf("支付", "付款", "转账", "金额", "¥", "￥", "确认支付")
+            return paymentKeywords.any { texts.contains(it, ignoreCase = true) }
+        } finally {
+            root.recycle()
+        }
     }
 
     private fun collectAllTexts(node: AccessibilityNodeInfo): List<String> {
@@ -108,7 +115,9 @@ class SafetyChecker {
         if (!desc.isNullOrBlank()) texts.add(desc)
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { texts.addAll(collectAllTexts(it)) }
+            val child = node.getChild(i) ?: continue
+            texts.addAll(collectAllTexts(child))
+            child.recycle()
         }
         return texts
     }

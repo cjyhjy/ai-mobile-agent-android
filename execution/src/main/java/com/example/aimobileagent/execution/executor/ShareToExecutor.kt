@@ -23,8 +23,12 @@ class ShareToExecutor @Inject constructor() : StepExecutor {
         }
         val shareTarget = service.findElementByText(label)
         return if (shareTarget != null) {
-            if (service.performClick(shareTarget)) StepResult.Success("已选择: $targetApp")
-            else StepResult.Failure("点击分享目标失败")
+            try {
+                if (service.performClick(shareTarget)) StepResult.Success("已选择: $targetApp")
+                else StepResult.Failure("点击分享目标失败")
+            } finally {
+                shareTarget.recycle()
+            }
         } else StepResult.Failure("找不到 '$label'")
     }
 

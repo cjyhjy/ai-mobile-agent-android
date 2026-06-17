@@ -23,14 +23,30 @@ class SearchExecutor @Inject constructor() : StepExecutor {
 
         if (searchNode == null) {
             val root = service.getRoot()
-            val focused = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            if (focused != null) { service.setText(focused, query); kotlinx.coroutines.delay(300); return StepResult.Success("已搜索 '$query'") }
+            try {
+                val focused = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                if (focused != null) {
+                    try {
+                        service.setText(focused, query)
+                        kotlinx.coroutines.delay(300)
+                        return StepResult.Success("已搜索 '$query'")
+                    } finally {
+                        focused.recycle()
+                    }
+                }
+            } finally {
+                root?.recycle()
+            }
             return StepResult.Failure("找不到搜索框")
         }
-        service.performClick(searchNode)
-        kotlinx.coroutines.delay(300)
-        service.setText(searchNode, query)
-        return StepResult.Success("已搜索 '$query'")
+        try {
+            service.performClick(searchNode)
+            kotlinx.coroutines.delay(300)
+            service.setText(searchNode, query)
+            return StepResult.Success("已搜索 '$query'")
+        } finally {
+            searchNode.recycle()
+        }
     }
 
     override suspend fun recover(step: Step, error: String): StepResult {

@@ -199,8 +199,10 @@ class AgentAccessibilityService : AccessibilityService() {
             val child = node.getChild(i) ?: continue
             val result = findNodeByText(child, text, exact)
             if (result != null) {
-                child.recycle()
+                if (result !== child) child.recycle()
                 return result
+            } else {
+                child.recycle()
             }
         }
         return null
@@ -216,7 +218,12 @@ class AgentAccessibilityService : AccessibilityService() {
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val result = findNodeByDescription(child, description)
-            if (result != null) return result
+            if (result != null) {
+                if (result !== child) child.recycle()
+                return result
+            } else {
+                child.recycle()
+            }
         }
         return null
     }
@@ -225,7 +232,9 @@ class AgentAccessibilityService : AccessibilityService() {
         node.text?.toString()?.let { if (it.isNotBlank()) texts.add(it) }
         node.contentDescription?.toString()?.let { if (it.isNotBlank()) texts.add("[$it]") }
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectAllTexts(it, texts) }
+            val child = node.getChild(i) ?: continue
+            collectAllTexts(child, texts)
+            child.recycle()
         }
     }
 

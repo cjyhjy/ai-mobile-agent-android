@@ -31,24 +31,31 @@ class ElementLocator {
         // 策略 1: 文本匹配
         val node = service.findElementByText(target)
         if (node != null) {
-            // 获取元素中心坐标
-            val rect = android.graphics.Rect()
-            node.getBoundsInScreen(rect)
-            val cx = (rect.left + rect.right) / 2f
-            val cy = (rect.top + rect.bottom) / 2f
-            return Pair(cx, cy)
+            try {
+                val rect = android.graphics.Rect()
+                node.getBoundsInScreen(rect)
+                val cx = (rect.left + rect.right) / 2f
+                val cy = (rect.top + rect.bottom) / 2f
+                return Pair(cx, cy)
+            } finally {
+                node.recycle()
+            }
         }
 
         // 策略 2: resourceId
         if (target.contains(":id/")) {
             val idNode = service.findElementByResourceId(target)
             if (idNode != null) {
-                val rect = android.graphics.Rect()
-                idNode.getBoundsInScreen(rect)
-                return Pair(
-                    (rect.left + rect.right) / 2f,
-                    (rect.top + rect.bottom) / 2f
-                )
+                try {
+                    val rect = android.graphics.Rect()
+                    idNode.getBoundsInScreen(rect)
+                    return Pair(
+                        (rect.left + rect.right) / 2f,
+                        (rect.top + rect.bottom) / 2f
+                    )
+                } finally {
+                    idNode.recycle()
+                }
             }
         }
 

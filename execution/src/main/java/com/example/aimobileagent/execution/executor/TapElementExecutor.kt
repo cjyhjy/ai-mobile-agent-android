@@ -19,16 +19,24 @@ class TapElementExecutor @Inject constructor() : StepExecutor {
         val node = service.findElementByText(target)
             ?: service.findElementByDescription(target)
         if (node != null) {
-            val clicked = service.performClick(node)
-            return if (clicked) StepResult.Success("已点击 '$target'")
-            else StepResult.Failure("点击 '$target' 失败")
+            try {
+                val clicked = service.performClick(node)
+                return if (clicked) StepResult.Success("已点击 '$target'")
+                else StepResult.Failure("点击 '$target' 失败")
+            } finally {
+                node.recycle()
+            }
         }
 
         if (target.contains(":id/")) {
             val idNode = service.findElementByResourceId(target)
             if (idNode != null) {
-                val clicked = service.performClick(idNode)
-                return if (clicked) StepResult.Success("已点击 $target") else StepResult.Failure("点击失败")
+                try {
+                    val clicked = service.performClick(idNode)
+                    return if (clicked) StepResult.Success("已点击 $target") else StepResult.Failure("点击失败")
+                } finally {
+                    idNode.recycle()
+                }
             }
         }
 

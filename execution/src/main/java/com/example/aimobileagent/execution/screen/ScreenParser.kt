@@ -35,14 +35,18 @@ class ScreenParser {
         val service = AgentAccessibilityService.instance ?: return ScreenState()
         val root = service.getRoot() ?: return ScreenState()
 
-        val state = ScreenState(
-            packageName = root.packageName?.toString() ?: "",
-            className = root.className?.toString() ?: ""
-        )
+        try {
+            val state = ScreenState(
+                packageName = root.packageName?.toString() ?: "",
+                className = root.className?.toString() ?: ""
+            )
 
-        val elements = mutableListOf<UIElement>()
-        collectElements(root, elements)
-        return state.copy(visibleElements = elements)
+            val elements = mutableListOf<UIElement>()
+            collectElements(root, elements)
+            return state.copy(visibleElements = elements)
+        } finally {
+            root.recycle()
+        }
     }
 
     /**
@@ -96,7 +100,9 @@ class ScreenParser {
         }
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { collectElements(it, elements) }
+            val child = node.getChild(i) ?: continue
+            collectElements(child, elements)
+            child.recycle()
         }
     }
 }

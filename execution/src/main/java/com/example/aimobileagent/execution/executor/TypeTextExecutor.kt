@@ -25,10 +25,14 @@ class TypeTextExecutor @Inject constructor() : StepExecutor {
         }
 
         if (inputNode == null) return StepResult.Failure("找不到输入框")
-        service.performClick(inputNode)
-        kotlinx.coroutines.delay(200)
-        return if (service.setText(inputNode, text)) StepResult.Success("已输入 '$text'")
-        else StepResult.Failure("输入失败")
+        try {
+            service.performClick(inputNode)
+            kotlinx.coroutines.delay(200)
+            return if (service.setText(inputNode, text)) StepResult.Success("已输入 '$text'")
+            else StepResult.Failure("输入失败")
+        } finally {
+            inputNode.recycle()
+        }
     }
 
     override suspend fun recover(step: Step, error: String): StepResult {
