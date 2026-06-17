@@ -193,7 +193,7 @@ class AgentAccessibilityService : AccessibilityService() {
             nodeText.contains(text, ignoreCase = true) || nodeDesc.contains(text, ignoreCase = true)
         }
 
-        if (matches && node.isClickable) return node
+        if (matches && (node.isClickable || node.isEditable)) return node
 
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
