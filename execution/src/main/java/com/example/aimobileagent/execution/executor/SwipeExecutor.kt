@@ -14,7 +14,10 @@ class SwipeExecutor @Inject constructor() : StepExecutor {
     override suspend fun execute(step: Step): StepResult {
         val service = AgentAccessibilityService.instance ?: return StepResult.Failure("AccessibilityService 未运行")
         service.waitForStable(300L)
-        val w = 1080f; val h = 2400f; val dir = step.params["direction"] ?: "up"
+        val dm = service.resources.displayMetrics
+        val w = dm.widthPixels.toFloat()
+        val h = dm.heightPixels.toFloat()
+        val dir = step.params["direction"] ?: "up"
         val (sx, sy, ex, ey) = when (dir) {
             "up" -> listOf(w/2, h*0.7f, w/2, h*0.3f)
             "down" -> listOf(w/2, h*0.3f, w/2, h*0.7f)
