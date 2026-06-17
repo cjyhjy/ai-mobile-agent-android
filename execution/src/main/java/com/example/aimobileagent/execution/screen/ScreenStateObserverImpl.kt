@@ -63,11 +63,11 @@ class ScreenStateObserverImpl @Inject constructor(
 
     override suspend fun waitForCondition(step: Step, timeoutMs: Long) {
         val service = AgentAccessibilityService.instance ?: return
+        val tgt = step.targetApp ?: return
         val deadline = System.currentTimeMillis() + timeoutMs
-        val tgt = step.targetApp
 
         while (System.currentTimeMillis() < deadline) {
-            if (tgt != null && service.getForegroundPackage() == tgt) {
+            if (service.getForegroundPackage() == tgt) {
                 return // 条件满足
             }
             kotlinx.coroutines.delay(300)
