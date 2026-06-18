@@ -60,7 +60,7 @@ fun HistoryScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.tasks) { task ->
+                items(uiState.tasks, key = { it.id }) { task ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()

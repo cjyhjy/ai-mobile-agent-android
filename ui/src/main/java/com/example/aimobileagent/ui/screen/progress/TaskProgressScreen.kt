@@ -88,7 +88,7 @@ fun TaskProgressScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(task.steps.sortedBy { it.orderIndex }) { step ->
+                items(task.steps.sortedBy { it.orderIndex }, key = { it.id }) { step ->
                     StepItem(step = step)
                 }
             }

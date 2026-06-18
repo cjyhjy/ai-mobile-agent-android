@@ -138,6 +138,9 @@ class ChatViewModel @Inject constructor(
 
     private fun applyModelSelection(name: String) {
         prefs.edit().putString("model_name", name).apply()
+        // 同步对应模型的 endpoint
+        val modelInfo = AVAILABLE_MODELS.find { it.name == name }
+        if (modelInfo != null) prefs.edit().putString("api_endpoint", modelInfo.endpoint).apply()
         // 更新对应模型的 API Key 为当前 key
         val modelKey = prefs.getString("api_key_$name", null)
             ?: prefs.getString("api_key", "") ?: ""
@@ -154,6 +157,9 @@ class ChatViewModel @Inject constructor(
             prefs.edit().putString("api_key_$model", key).apply()
             prefs.edit().putString("api_key", key).apply()
             prefs.edit().putString("model_name", model).apply()
+            // 同步 endpoint
+            val modelInfo = AVAILABLE_MODELS.find { it.name == model }
+            if (modelInfo != null) prefs.edit().putString("api_endpoint", modelInfo.endpoint).apply()
             _uiState.update { it.copy(showApiKeyDialog = false, selectedModel = model) }
         }
     }

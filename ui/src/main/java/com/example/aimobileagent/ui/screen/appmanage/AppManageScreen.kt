@@ -60,7 +60,7 @@ fun AppManageScreen(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.registeredApps) { app ->
+                items(uiState.registeredApps, key = { it.packageName }) { app ->
                     RegisteredAppItem(
                         app = app,
                         onRemove = { viewModel.removeApp(app.packageName, app.appName) }
@@ -125,7 +125,7 @@ fun AppManageScreen(
                     )
                 } else {
                     LazyColumn {
-                        items(uiState.installedApps) { app ->
+                        items(uiState.installedApps, key = { it.packageName }) { app ->
                             InstalledAppRow(
                                 app = app,
                                 onAdd = {

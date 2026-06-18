@@ -45,12 +45,13 @@ class ExecuteTaskUseCase(
         taskRepository.saveTask(runningTask)
 
         val sortedSteps = task.steps.sortedBy { it.orderIndex }
+        val currentSteps = task.steps.toMutableList() // 累积所有状态更新，避免相互覆盖
         val startTime = System.currentTimeMillis()
         val maxRetries = 2 // 每步最多重试次数
 
         for (step in sortedSteps) {
             val runningStep = step.copy(status = StepStatus.RUNNING)
-            updateStep(task, runningStep)
+            updateStep(task, runningStep, currentSteps)
 
             // ===== PHASE 1: OBSERVE =====
             val screenState = screenObserver?.observe()
@@ -66,13 +67,14 @@ class ExecuteTaskUseCase(
                     updateStep(task, runningStep.copy(
                         status = StepStatus.FAILED,
                         errorMessage = "安全停止: ${safetyResult.reason}"
-                    ))
+                    ), currentSteps)
                     task.steps.filter { it.orderIndex > step.orderIndex }.forEach { remaining ->
-                        updateStep(task, remaining.copy(status = StepStatus.SKIPPED))
+                        updateStep(task, remaining.copy(status = StepStatus.SKIPPED), currentSteps)
                     }
                     val failedTask = task.copy(
                         status = TaskStatus.FAILED,
-                        completedAt = System.currentTimeMillis()
+                        completedAt = System.currentTimeMillis(),
+                        steps = currentSteps.toList()
                     )
                     taskRepository.saveTask(failedTask)
                     return ExecutionResult.Failure(step, "安全策略拦截: ${safetyResult.reason}")
@@ -134,7 +136,7 @@ class ExecuteTaskUseCase(
                         updateStep(task, runningStep.copy(
                             status = StepStatus.SUCCESS,
                             executionDurationMs = duration
-                        ))
+                        ), currentSteps)
                         agentContext?.onStepEvent(
                             AgentStepEvent.Verified(step.orderIndex, false, verified.reason)
                         )
@@ -142,7 +144,7 @@ class ExecuteTaskUseCase(
                         updateStep(task, runningStep.copy(
                             status = StepStatus.SUCCESS,
                             executionDurationMs = duration
-                        ))
+                        ), currentSteps)
                         agentContext?.onStepEvent(
                             AgentStepEvent.Verified(step.orderIndex, true, "成功")
                         )
@@ -155,19 +157,20 @@ class ExecuteTaskUseCase(
                         updateStep(task, runningStep.copy(
                             status = StepStatus.SUCCESS,
                             executionDurationMs = System.currentTimeMillis() - stepStart
-                        ))
+                        ), currentSteps)
                     } else {
                         updateStep(task, runningStep.copy(
                             status = StepStatus.FAILED,
                             errorMessage = result.error,
                             executionDurationMs = duration
-                        ))
+                        ), currentSteps)
                         task.steps.filter { it.orderIndex > step.orderIndex }.forEach { remaining ->
-                            updateStep(task, remaining.copy(status = StepStatus.SKIPPED))
+                            updateStep(task, remaining.copy(status = StepStatus.SKIPPED), currentSteps)
                         }
                         val failedTask = task.copy(
                             status = TaskStatus.FAILED,
-                            completedAt = System.currentTimeMillis()
+                            completedAt = System.currentTimeMillis(),
+                            steps = currentSteps.toList()
                         )
                         taskRepository.saveTask(failedTask)
                         return ExecutionResult.Failure(step, result.error)
@@ -179,19 +182,19 @@ class ExecuteTaskUseCase(
         val totalDuration = System.currentTimeMillis() - startTime
         val completedTask = task.copy(
             status = TaskStatus.COMPLETED,
-            completedAt = System.currentTimeMillis()
+            completedAt = System.currentTimeMillis(),
+            steps = currentSteps.toList()
         )
         taskRepository.saveTask(completedTask)
         return ExecutionResult.Success(sortedSteps.size, totalDuration)
     }
 
-    private suspend fun updateStep(task: Task, step: Step) {
-        val updatedSteps = task.steps.toMutableList()
-        val index = updatedSteps.indexOfFirst { it.id == step.id }
+    private suspend fun updateStep(task: Task, step: Step, currentSteps: MutableList<Step>) {
+        val index = currentSteps.indexOfFirst { it.id == step.id }
         if (index >= 0) {
-            updatedSteps[index] = step
+            currentSteps[index] = step
         }
-        taskRepository.saveTask(task.copy(steps = updatedSteps))
+        taskRepository.saveTask(task.copy(steps = currentSteps.toList()))
     }
 }
 

@@ -1,0 +1,73 @@
+## 项目背景
+
+这是一个 Android 智能助手应用，核心功能：
+- 用户输入自然语言 → LLM（DeepSeek API）返回 JSON 任务计划 → AccessibilityService 执行手机操作
+- 5 模块 Clean Architecture：app / domain / data / execution / ui
+- Kotlin + Jetpack Compose + Room + Hilt + OkHttp
+
+请先阅读文档了解架构，再审查代码。禁止跳过文档直接改代码。
+
+## 你的任务
+
+审查 D:\ai-mobile-agent-android\ 项目的全部 Kotlin 代码（约 60 个文件），找出可改进之处。
+
+## 约束（必须遵守）
+
+1. **不能破坏现有功能**。每次改动后需说明如何验证原有功能不受影响。
+2. 改动范围只限于 Kotlin 源文件（`*/src/main/java/**/*.kt`），不修改 Gradle/Manifest/资源文件。
+3. 不要改动关键接口（StepExecutor / ScreenStateObserver / TaskRepository / LLMRepository）。
+4. 不要改动系统提示词（除非 LLM 输出格式兼容）。
+5. 每次改动后用 gradlew assembleDebug 验证编译通过。
+
+## 审查维度（按优先级）
+
+### 1. 稳定性（高优先）
+- 空安全问题：`!!` 操作符、可空链是否有遗漏
+- 异常处理：是否吞掉了重要异常（catch后无log）、是否有未捕获的异常
+- 并发安全：协程作用域是否正确（viewModelScope / Dispatchers.IO）、Flow 结束是否正确 close
+- 资源泄漏：OkHttp Response/InputStream/Reader 是否在 finally 中关闭
+
+### 2. 正确性（高优先）
+- 数据流是否正确：taskId 是否正确传递、步骤顺序是否正确
+- JSON 解析健壮性：org.json 的 optXxx vs getXxx 是否正确使用
+- 边界条件：空列表/空字符串/null 参数场景
+
+### 3. 代码质量（中优先）
+- 重复代码：相似逻辑是否可提取为公共方法
+- 命名规范：变量/函数名是否清晰
+- 函数长度：超过 40 行的函数是否应拆分
+- 魔法数字/字符串：硬编码的常量是否应提取
+
+### 4. 性能（低优先）
+- 不必要的对象创建
+- 主线程阻塞操作（StrictMode 违规）
+- LazyColumn key 使用是否正确
+
+## 输出格式
+
+对每个发现的问题，请按以下格式输出：
+
+```
+### [编号] [级别: 高/中/低] 问题标题
+**文件**: xxx.kt:行号
+**问题**: 一句话描述
+**影响**: 可能导致什么后果
+**修复方案**: 具体代码改动
+**验证方法**: 如何确认修复有效且不破坏原有功能
+```
+
+修复时每个问题单独 commit，message 格式：`fix(#): 简短描述`
+
+## 快速定位指南
+
+| 想看什么 | 文件 |
+|----------|------|
+| 聊天+任务路由 | ui/.../chat/ChatViewModel.kt |
+| SSE 流式请求 | data/.../remote/StreamingLLMClient.kt |
+| JSON 解析 | data/.../remote/LLMResponseParser.kt |
+| 执行引擎 | domain/.../usecase/ExecuteTaskUseCase.kt |
+| 无障碍服务 | execution/.../AgentAccessibilityService.kt |
+| 执行器分发 | execution/.../StepExecutorFactory.kt |
+| DI 配置 | app/.../di/AppModule.kt |
+| 领域模型 | domain/.../model/ |
+| Room 数据库 | data/.../local/AppDatabase.kt |

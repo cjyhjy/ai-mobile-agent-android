@@ -58,6 +58,7 @@ class ScreenParser {
         sb.appendLine("当前App: ${state.packageName}")
         sb.appendLine("当前页面: ${state.className}")
         sb.appendLine("可见交互元素:")
+        val totalCount = state.visibleElements.size
         state.visibleElements.take(20).forEach { el ->
             val label = when {
                 el.text.isNotBlank() -> "\"${el.text}\""
@@ -71,6 +72,9 @@ class ScreenParser {
                 else -> "其他"
             }
             sb.appendLine("  - $label ($type)")
+        }
+        if (totalCount > 20) {
+            sb.appendLine("  ... 还有 ${totalCount - 20} 个元素未显示")
         }
         return sb.toString()
     }

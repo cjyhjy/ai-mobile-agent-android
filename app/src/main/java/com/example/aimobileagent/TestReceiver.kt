@@ -26,7 +26,8 @@ class TestReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val cmd = intent.getStringExtra("cmd") ?: return
-        Log.e("TestReceiver", "收到测试命令: $cmd")
+        val pending = goAsync() // 保护协程生命周期，系统不会过早回收
+        Log.i("TestReceiver", "收到测试命令: $cmd")
 
         scope.launch {
             try {
@@ -37,15 +38,17 @@ class TestReceiver : BroadcastReceiver() {
                 taskRepository.saveTask(readyTask)
 
                 if (task.intent.startsWith("chat:")) {
-                    Log.e("TestReceiver", "✅ 聊天: ${task.intent.removePrefix("chat:")}")
+                    Log.i("TestReceiver", "✅ 聊天: ${task.intent.removePrefix("chat:")}")
                 } else {
-                    Log.e("TestReceiver", "✅ 任务: intent=${task.intent}, steps=${task.steps.size}")
+                    Log.i("TestReceiver", "✅ 任务: intent=${task.intent}, steps=${task.steps.size}")
                     task.steps.forEach { step ->
-                        Log.e("TestReceiver", "  Step ${step.orderIndex}: ${step.actionType} → ${step.targetApp ?: step.targetElement}")
+                        Log.i("TestReceiver", "  Step ${step.orderIndex}: ${step.actionType} → ${step.targetApp ?: step.targetElement}")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("TestReceiver", "❌ 失败: ${e.message}")
+                Log.w("TestReceiver", "❌ 失败: ${e.message}", e)
+            } finally {
+                pending.finish()
             }
         }
     }

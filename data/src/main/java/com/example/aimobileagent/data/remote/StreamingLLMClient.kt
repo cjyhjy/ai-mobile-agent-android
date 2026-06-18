@@ -24,6 +24,7 @@ class StreamingLLMClient @Inject constructor(
     ): Flow<StreamEvent> = callbackFlow {
         val apiKey = prefs.getString("api_key", "") ?: ""
         val model = prefs.getString("model_name", "deepseek-chat") ?: "deepseek-chat"
+        val endpoint = prefs.getString("api_endpoint", "https://api.deepseek.com") ?: "https://api.deepseek.com"
 
         if (apiKey.isBlank()) { trySend(StreamEvent.Error("API Key未配置")); close(); return@callbackFlow }
 
@@ -47,7 +48,7 @@ class StreamingLLMClient @Inject constructor(
         }.toString()
 
         val req = Request.Builder()
-            .url("https://api.deepseek.com/v1/chat/completions")
+            .url("$endpoint/v1/chat/completions")
             .header("Authorization", "Bearer $apiKey")
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
@@ -101,11 +102,14 @@ class StreamingLLMClient @Inject constructor(
     }
 
     private fun extractContent(jsonLine: String): String {
-        // Simple JSON parsing to avoid kotlinx.serialization issues
-        val pattern = Regex(""""content"\s*:\s*"((?:[^"\\]|\\.)*)"""")
-        return pattern.find(jsonLine)?.groupValues?.get(1)?.let {
-            it.replace("\\n", "\n").replace("\\t", "\t").replace("\\\"", "\"").replace("\\\\", "\\")
-        } ?: ""
+        // 用 org.json 正确解析 SSE 数据行，避免手动转义顺序错误
+        return try {
+            val obj = org.json.JSONObject(jsonLine)
+            val choices = obj.optJSONArray("choices") ?: return ""
+            val choice = choices.optJSONObject(0) ?: return ""
+            val delta = choice.optJSONObject("delta") ?: return ""
+            delta.optString("content", "")
+        } catch (_: Exception) { "" }
     }
 
     private fun parseResponse(text: String): ParsedResponse {

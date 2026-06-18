@@ -16,9 +16,9 @@ class ShareToExecutor @Inject constructor() : StepExecutor {
         val service = AgentAccessibilityService.instance ?: return StepResult.Failure("AccessibilityService 未运行")
         service.waitForStable(500L)
 
-        val label = when {
-            targetApp.contains("wechat") || targetApp.contains("tencent") -> "微信"
-            targetApp.contains("messaging") -> "短信"
+        val label = when (targetApp) {
+            "com.tencent.mm" -> "微信"
+            "com.android.mms", "com.google.android.apps.messaging" -> "短信"
             else -> targetApp.substringAfterLast(".")
         }
         val shareTarget = service.findElementByText(label)

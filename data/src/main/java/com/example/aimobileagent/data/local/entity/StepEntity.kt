@@ -73,14 +73,10 @@ data class StepEntity(
     private fun parseParams(json: String): Map<String, String> {
         if (json.isBlank() || json == "{}") return emptyMap()
         return try {
-            json.removeSurrounding("{", "}")
-                .split(",")
-                .map { it.trim() }
-                .filter { it.contains(":") }
-                .associate {
-                    val (k, v) = it.split(":", limit = 2)
-                    k.trim().removeSurrounding("\"") to v.trim().removeSurrounding("\"")
-                }
+            val obj = org.json.JSONObject(json)
+            val map = mutableMapOf<String, String>()
+            obj.keys().forEach { key -> map[key] = obj.optString(key, "") }
+            map
         } catch (_: Exception) {
             emptyMap()
         }

@@ -120,7 +120,7 @@ fun ChatScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                     }
                 }
-                items(uiState.messages) { message -> MessageBubble(message = message) }
+                items(uiState.messages, key = { it.timestamp }) { message -> MessageBubble(message = message) }
                 uiState.currentTask?.let { task ->
                     item { TaskPlanCard(task = task, onConfirm = { onNavigateToProgress(task.id) }) }
                 }
@@ -191,10 +191,10 @@ private fun TaskPlanCard(task: com.example.aimobileagent.domain.model.Task, onCo
 
 private fun readFile(context: android.content.Context, uri: Uri, viewModel: ChatViewModel) {
     try {
-        val input = context.contentResolver.openInputStream(uri)
         val name = uri.lastPathSegment ?: "file"
-        val content = input?.bufferedReader()?.readText() ?: ""
-        input?.close()
+        val content = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
         viewModel.onFileSelected(uri, name, content)
-    } catch (_: Exception) {}
+    } catch (e: Exception) {
+        android.util.Log.e("ChatScreen", "文件读取失败: ${e.message}", e)
+    }
 }
