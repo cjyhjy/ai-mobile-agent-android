@@ -48,14 +48,16 @@
 - 决策：UI 采用暗色主题（Slate色系 + Indigo主色调）
 - 理由：科技感 + AI 产品常见风格，Material 3 暗色支持成熟
 
-## 项目当前状态（v2.3.0，2026-06-17）
+## 项目当前状态（v2.4.0，2026-06-17）
 
 ### Android 端
+- **版本**：v2.4.0
 - **代码量**：约 4500+ 行 Kotlin（60+ 文件）
 - **APK**：`app/build/outputs/apk/debug/app-debug.apk`
 - **编译**：✅ BUILD SUCCESSFUL (JDK 21)
 - **路径**：`D:\ai-mobile-agent-android\`
 - **已验证**：聊天模式、任务规划、任务执行（打开 App）
+- **质量**：GLM + Qwen 双模型独立审查，19 个问题全部修复
 
 ### HarmonyOS 端
 - **代码量**：约 600 行 ArkTS + 配置文件
@@ -81,6 +83,12 @@
 - 新增：ChatViewModel 检测 `mode=="task"` 自动创建 Task + TaskPlanCard
 - 改进：App 列表格式从"包名"改为"应用名(包名)"，帮助 LLM 匹配
 - 修复：无障碍服务在 Mumu 上用 `content insert` 方式绑定
+
+### v2.4.0 (06-17) — 双模型审查全面修复
+- GLM 独立审查发现 9 个问题，Qwen 独立审查发现 10 个
+- 合并修复 6 个 GLM 独有 + 3 个 Qwen 未修 = 共 19 个问题全部修复
+- 关键：动态 endpoint、步骤状态覆盖、extractContent 转义、parseParams、LazyColumn key
+- 构建：KSP 2.0.21-1.0.28 + incremental=false 解决 Windows 编译问题
 
 ### v2.2.2 (06-16) — JSON 转义修复
 - 修复：手动 String.replace() 遗漏 `\r` 导致 API 400

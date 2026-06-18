@@ -7,7 +7,7 @@
 
 An on-device AI assistant that automates Android phone operations through natural language commands — powered by **Large Language Models** and **AccessibilityService**.
 
-> 📖 **详细文档**: [架构文档](docs/ARCHITECTURE.md) | [开发指南](docs/DEVELOPMENT.md) | [AI 使用说明](docs/AI_USAGE.md)
+> 📖 **详细文档**: [架构文档](docs/ARCHITECTURE.md) | [开发指南](docs/DEVELOPMENT.md) | [课程报告](docs/课程结课报告.md) | [AI 使用说明](docs/AI_USAGE.md)
 
 ---
 
@@ -195,12 +195,17 @@ Tests cover: chat mode, task mode, settings page, and API connectivity.
 
 | 版本 | 日期 | 内容 |
 |------|------|------|
+| **v2.4.0** | **06-17** | **双模型审查：GLM+Qwen 发现 19 个问题，全部修复** |
 | v2.3.0 | 06-17 | Task 路由修复：LLM 返回 task JSON 自动创建计划卡片 |
 | v2.2.2 | 06-16 | JSON 转义修复：用 org.json 替换手工拼接 |
 | v2.2 | 06-15 | 7 模型支持 + 独立 API Key + 文件上传 |
 | v2.1 | 06-10 | SSE 流式修复 + 中止对话 + 模型选择 |
 | v2.0 | 06-08 | 流式响应 + 多轮对话上下文 |
 | v1.x | 06-02~07 | 项目搭建 + Room + AccessibilityService + OTAV 循环 |
+
+## 🏆 质量保证
+
+项目经 **GLM + Qwen 双模型独立审查**，覆盖全部 ~60 个 Kotlin 文件，发现并修复 19 个问题（涉及稳定性、正确性、代码质量），编译验证通过。详见 [课程报告](docs/课程结课报告.md)。
 
 ## 🔮 后续计划
 

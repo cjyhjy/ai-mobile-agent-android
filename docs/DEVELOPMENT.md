@@ -1,7 +1,8 @@
 # AI Mobile Agent — 开发指南
 
 > **适用读者**：接手本项目的开发者 / AI 助手  
-> **前置阅读**：先读 [ARCHITECTURE.md](ARCHITECTURE.md) 了解整体架构
+> **前置阅读**：先读 [ARCHITECTURE.md](ARCHITECTURE.md) 了解整体架构  
+> **代码版本**：v2.4.0
 
 ---
 
