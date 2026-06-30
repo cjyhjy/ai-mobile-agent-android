@@ -22,7 +22,7 @@
 
     <application
         android:name=".AgentApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="AI Mobile Agent"
         android:supportsRtl="true"
@@ -52,15 +52,5 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
-
-        <!-- 测试 Receiver：接受 ADB 广播命令 -->
-        <receiver
-            android:name=".TestReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="com.example.aimobileagent.TEST_CMD" />
-            </intent-filter>
-        </receiver>
-
     </application>
 </manifest>

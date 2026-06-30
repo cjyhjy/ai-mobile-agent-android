@@ -14,9 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.aimobileagent.ui.component.MessageBubble
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -27,7 +29,7 @@ fun ChatScreen(
     onNavigateToSettings: () -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = LocalContext.current
 
@@ -96,13 +98,20 @@ fun ChatScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("🤖 AI 手机智能体") },
+            CenterAlignedTopAppBar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("AI 手机智能体", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            uiState.selectedModel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 actions = {
-                    // 模型选择按钮
-                    TextButton(onClick = { viewModel.toggleModelPicker() }) {
-                        Text(uiState.selectedModel.take(10), fontSize = 11.sp)
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.size(16.dp))
+                    FilledTonalIconButton(onClick = { viewModel.toggleModelPicker() }) {
+                        Icon(Icons.Default.Tune, contentDescription = "选择模型")
                     }
                     IconButton(onClick = onNavigateToHistory) { Icon(Icons.Default.History, contentDescription = "历史") }
                     IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, contentDescription = "设置") }
@@ -110,14 +119,19 @@ fun ChatScreen(
             )
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
             LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (uiState.messages.isEmpty()) {
                     item {
-                        Text("👋 你好！我是你的手机智能助手。\n\n你可以告诉我你想做什么，比如：\n• 聊天提问\n• 发送文件让我分析\n• 执行手机任务",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        WelcomePanel(
+                            onAttach = { filePicker.launch(arrayOf("text/*", "application/json", "*/*")) },
+                            onSettings = onNavigateToSettings
+                        )
                     }
                 }
                 items(uiState.messages, key = { it.timestamp }) { message -> MessageBubble(message = message) }
@@ -145,23 +159,28 @@ fun ChatScreen(
 @Composable
 private fun InputBar(text: String, onTextChange: (String) -> Unit, onSend: () -> Unit,
                      onStop: () -> Unit, onAttach: () -> Unit, isProcessing: Boolean) {
-    Surface(tonalElevation = 4.dp, shadowElevation = 8.dp) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(tonalElevation = 8.dp, shadowElevation = 8.dp) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Bottom) {
             // 附件按钮
-            IconButton(onClick = onAttach) {
+            FilledTonalIconButton(onClick = onAttach) {
                 Icon(Icons.Default.AttachFile, contentDescription = "上传文件")
             }
             OutlinedTextField(value = text, onValueChange = onTextChange, modifier = Modifier.weight(1f),
-                placeholder = { Text("告诉我你想做什么...") }, enabled = !isProcessing, maxLines = 3)
+                placeholder = { Text("告诉我你想做什么...") }, enabled = !isProcessing, maxLines = 4,
+                shape = MaterialTheme.shapes.large)
             Spacer(Modifier.width(8.dp))
             if (isProcessing) {
-                FloatingActionButton(onClick = onStop, modifier = Modifier.size(48.dp),
-                    containerColor = MaterialTheme.colorScheme.error) {
+                FilledIconButton(onClick = onStop, modifier = Modifier.size(48.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )) {
                     Icon(Icons.Default.Stop, contentDescription = "停止")
                 }
             } else {
-                FloatingActionButton(onClick = onSend, modifier = Modifier.size(48.dp),
-                    containerColor = MaterialTheme.colorScheme.primary) {
+                FilledIconButton(onClick = onSend, modifier = Modifier.size(48.dp),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )) {
                     Icon(Icons.Default.Send, contentDescription = "发送")
                 }
             }
@@ -170,10 +189,66 @@ private fun InputBar(text: String, onTextChange: (String) -> Unit, onSend: () ->
 }
 
 @Composable
+private fun WelcomePanel(onAttach: () -> Unit, onSettings: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.large,
+        tonalElevation = 1.dp
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(40.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null)
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        "今天想让手机帮你做什么？",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        "聊天、读文件、生成任务计划都可以从这里开始。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(
+                    onClick = onAttach,
+                    label = { Text("上传文件") },
+                    leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                )
+                AssistChip(
+                    onClick = onSettings,
+                    label = { Text("配置模型") },
+                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun TaskPlanCard(task: com.example.aimobileagent.domain.model.Task, onConfirm: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+    ElevatedCard(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
         Column(Modifier.padding(16.dp)) {
-            Text("📋 任务计划", style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FactCheck, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("任务计划", style = MaterialTheme.typography.titleMedium)
+            }
             Spacer(Modifier.height(8.dp))
             Text("意图: ${task.intent}", style = MaterialTheme.typography.bodyMedium)
             Text("步骤: ${task.steps.size} 步 | 置信度: ${(task.confidence * 100).toInt()}%",
@@ -184,7 +259,11 @@ private fun TaskPlanCard(task: com.example.aimobileagent.domain.model.Task, onCo
                     style = MaterialTheme.typography.bodySmall)
             }
             Spacer(Modifier.height(12.dp))
-            Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) { Text("确认执行") }
+            Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("确认执行")
+            }
         }
     }
 }

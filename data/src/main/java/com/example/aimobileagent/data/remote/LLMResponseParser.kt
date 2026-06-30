@@ -2,6 +2,7 @@ package com.example.aimobileagent.data.remote
 
 import com.example.aimobileagent.data.remote.dto.StepDto
 import com.example.aimobileagent.data.remote.dto.TaskPlanDto
+import com.example.aimobileagent.data.BuildConfig
 import com.example.aimobileagent.domain.repository.LLMException
 import kotlinx.serialization.json.Json
 
@@ -29,7 +30,9 @@ class LLMResponseParser {
      * @throws LLMException 无法解析时抛出
      */
     fun parse(rawContent: String): TaskPlanDto {
-        android.util.Log.e("LLMParser", "原始响应: ${rawContent.take(300)}")
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("LLMParser", "原始响应: ${rawContent.take(300)}")
+        }
         val extracted = extractJson(rawContent)
         if (extracted == null) {
             // 容错：尝试正则提取 reply 字段
@@ -37,13 +40,17 @@ class LLMResponseParser {
             if (replyMatch != null) {
                 val reply = replyMatch.groupValues[1]
                     .replace("\\n", "\n").replace("\\t", "\t").replace("\\\"", "\"")
-                android.util.Log.e("LLMParser", "正则提取reply: ${reply.take(100)}")
+                if (BuildConfig.DEBUG) {
+                    android.util.Log.d("LLMParser", "正则提取reply: ${reply.take(100)}")
+                }
                 return TaskPlanDto(mode = "chat", reply = reply, steps = emptyList())
             }
             throw LLMException("无法从LLM响应中提取JSON，原始响应: ${rawContent.take(300)}")
         }
 
-        android.util.Log.e("LLMParser", "提取JSON: ${extracted.take(200)}")
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("LLMParser", "提取JSON: ${extracted.take(200)}")
+        }
 
         return try {
             val plan = json.decodeFromString<TaskPlanDto>(extracted)
@@ -64,7 +71,9 @@ class LLMResponseParser {
                 return plan.copy(steps = fixedSteps)
             }
 
-            android.util.Log.e("LLMParser", "mode=${plan.mode} reply=${plan.reply.take(50)} steps=${plan.steps.size}")
+            if (BuildConfig.DEBUG) {
+                android.util.Log.d("LLMParser", "mode=${plan.mode} reply=${plan.reply.take(50)} steps=${plan.steps.size}")
+            }
             plan
         } catch (e: LLMException) {
             throw e

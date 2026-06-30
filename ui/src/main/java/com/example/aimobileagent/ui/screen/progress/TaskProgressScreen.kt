@@ -9,12 +9,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.aimobileagent.domain.model.ExecutionResult
 import com.example.aimobileagent.domain.model.StepStatus
 import com.example.aimobileagent.domain.model.TaskStatus
@@ -26,7 +26,7 @@ fun TaskProgressScreen(
     onBack: () -> Unit,
     viewModel: TaskProgressViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(taskId) {
         viewModel.loadTask(taskId)
@@ -58,15 +58,15 @@ fun TaskProgressScreen(
             }
 
             // 任务头部
-            Card(
+            ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "📋 ${task.userCommand}",
+                        text = task.userCommand,
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -105,14 +105,14 @@ fun TaskProgressScreen(
                 uiState.result != null -> {
                     when (val result = uiState.result!!) {
                         is ExecutionResult.Success -> {
-                            Card(
+                            ElevatedCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
+                                colors = CardDefaults.elevatedCardColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer
                                 )
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("✅ 任务完成", style = MaterialTheme.typography.titleMedium)
+                                    Text("任务完成", style = MaterialTheme.typography.titleMedium)
                                     Text(
                                         "完成 ${result.completedSteps} 步，耗时 ${result.totalDurationMs}ms",
                                         style = MaterialTheme.typography.bodyMedium
@@ -121,14 +121,14 @@ fun TaskProgressScreen(
                             }
                         }
                         is ExecutionResult.Failure -> {
-                            Card(
+                            ElevatedCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
+                                colors = CardDefaults.elevatedCardColors(
                                     containerColor = MaterialTheme.colorScheme.errorContainer
                                 )
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("❌ 执行失败", style = MaterialTheme.typography.titleMedium)
+                                    Text("执行失败", style = MaterialTheme.typography.titleMedium)
                                     Text(result.error, style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
@@ -153,9 +153,9 @@ fun TaskProgressScreen(
 
 @Composable
 private fun StepItem(step: com.example.aimobileagent.domain.model.Step) {
-    Card(
+    ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        colors = CardDefaults.elevatedCardColors(
             containerColor = when (step.status) {
                 StepStatus.SUCCESS -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                 StepStatus.FAILED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)

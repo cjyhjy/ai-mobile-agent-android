@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.aimobileagent.domain.model.AppCapability
 import com.example.aimobileagent.domain.repository.InstalledAppInfo
 
@@ -21,7 +22,7 @@ fun AppManageScreen(
     onBack: () -> Unit,
     viewModel: AppManageViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showAddSheet by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -145,10 +146,10 @@ private fun RegisteredAppItem(
     app: AppCapability,
     onRemove: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ElevatedCard(
+                        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         )
     ) {
         Row(

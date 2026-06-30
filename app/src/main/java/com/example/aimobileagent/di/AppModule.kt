@@ -2,6 +2,8 @@ package com.example.aimobileagent.di
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.example.aimobileagent.domain.repository.LLMRepository
 import com.example.aimobileagent.domain.repository.TaskRepository
 import com.example.aimobileagent.domain.usecase.*
@@ -19,10 +21,56 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object AppModule {
 
+    private const val PREFS_NAME = "agent_prefs"
+    private val SENSITIVE_PREF_KEYS = setOf(
+        "api_key",
+        "api_endpoint",
+        "model_name",
+        "api_key_deepseek-chat",
+        "api_key_deepseek-reasoner",
+        "api_key_gpt-4o-mini",
+        "api_key_gpt-4o",
+        "api_key_claude-3.5-haiku",
+        "api_key_claude-sonnet-4-6",
+        "api_key_gemini-2.0-flash"
+    )
+
     @Provides @Singleton
     fun provideSharedPreferences(@ApplicationContext context: Context): SharedPreferences {
-        // 使用普通 SharedPreferences（模拟器兼容，生产环境换 EncryptedSharedPreferences）
-        return context.getSharedPreferences("agent_prefs", Context.MODE_PRIVATE)
+        val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        val encryptedPrefs = EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+
+        migrateLegacyPrefs(legacyPrefs, encryptedPrefs)
+        return encryptedPrefs
+    }
+
+    private fun migrateLegacyPrefs(
+        legacyPrefs: SharedPreferences,
+        encryptedPrefs: SharedPreferences
+    ) {
+        val updates = legacyPrefs.all
+            .filterKeys { it in SENSITIVE_PREF_KEYS }
+            .filter { (key, value) ->
+                value is String && encryptedPrefs.getString(key, null).isNullOrBlank()
+            }
+
+        if (updates.isEmpty()) return
+
+        encryptedPrefs.edit().apply {
+            updates.forEach { (key, value) -> putString(key, value as String) }
+        }.apply()
+        legacyPrefs.edit().apply {
+            updates.keys.forEach { remove(it) }
+        }.apply()
     }
 
     // ===== Execution 层 DI =====

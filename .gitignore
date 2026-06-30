@@ -1,5 +1,6 @@
 node_modules/
 .gradle/
+.kotlin/
 *.apk
 *.aab
 build/
@@ -7,4 +8,4 @@ local.properties
 .idea/
 *.iml
 .DS_Store
-hs_err_pid50800.log hs_err_pid9868.log
+hs_err_pid*.log

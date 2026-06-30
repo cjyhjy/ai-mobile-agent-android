@@ -2,9 +2,13 @@ package com.example.aimobileagent.ui.component
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,8 +27,10 @@ fun MessageBubble(message: ChatMessage) {
     ) {
         if (!message.isFromUser) {
             Surface(modifier = Modifier.size(32.dp), shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)) {
-                Box(contentAlignment = Alignment.Center) { Text("🤖", fontSize = 16.sp) }
+                color = MaterialTheme.colorScheme.secondaryContainer) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
             }
             Spacer(Modifier.width(8.dp))
         }
@@ -35,8 +41,8 @@ fun MessageBubble(message: ChatMessage) {
         ) {
             Surface(
                 shape = MaterialTheme.shapes.medium,
-                color = if (message.isFromUser) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                color = if (message.isFromUser) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                 tonalElevation = if (message.isFromUser) 2.dp else 0.dp
             ) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -62,8 +68,10 @@ fun MessageBubble(message: ChatMessage) {
         if (message.isFromUser) {
             Spacer(Modifier.width(8.dp))
             Surface(modifier = Modifier.size(32.dp), shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)) {
-                Box(contentAlignment = Alignment.Center) { Text("👤", fontSize = 16.sp) }
+                color = MaterialTheme.colorScheme.primaryContainer) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }

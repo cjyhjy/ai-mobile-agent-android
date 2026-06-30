@@ -5,13 +5,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SettingsApplications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,7 +22,7 @@ fun SettingsScreen(
     onNavigateToAppManage: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -47,8 +49,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // LLM 配置
-            Text("🤖 LLM 配置", style = MaterialTheme.typography.titleMedium)
+            Text("LLM 配置", style = MaterialTheme.typography.titleMedium)
 
             OutlinedTextField(
                 value = uiState.apiKey,
@@ -77,7 +78,7 @@ fun SettingsScreen(
             Divider()
 
             // App 管理
-            Text("📱 App 管理", style = MaterialTheme.typography.titleMedium)
+            Text("App 管理", style = MaterialTheme.typography.titleMedium)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -95,7 +96,9 @@ fun SettingsScreen(
                         onClick = onNavigateToAppManage,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("📱 管理 App 能力")
+                        Icon(Icons.Default.SettingsApplications, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("管理 App 能力")
                     }
                 }
             }
@@ -103,7 +106,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // 无障碍服务状态
-            Text("🔧 系统权限", style = MaterialTheme.typography.titleMedium)
+            Text("系统权限", style = MaterialTheme.typography.titleMedium)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -116,8 +119,10 @@ fun SettingsScreen(
                 )
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Icon(Icons.Default.Security, contentDescription = null)
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "无障碍服务: ${if (uiState.isAccessibilityEnabled) "✅ 已开启" else "❌ 未开启"}",
+                        text = "无障碍服务: ${if (uiState.isAccessibilityEnabled) "已开启" else "未开启"}",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))

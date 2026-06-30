@@ -5,12 +5,15 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 
 @Singleton
 class StreamingLLMClient @Inject constructor(
@@ -53,52 +56,70 @@ class StreamingLLMClient @Inject constructor(
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
 
-        trySend(StreamEvent.Thinking)
-        val resp = okHttpClient.newCall(req).execute()
-        if (!resp.isSuccessful) {
-            trySend(StreamEvent.Error("API ${resp.code}: ${resp.body?.string()?.take(200)}"))
-            close(); return@callbackFlow
-        }
-
-        val respBody = resp.body
-        if (respBody == null) {
-            trySend(StreamEvent.Error("API 响应体为空"))
-            close(); return@callbackFlow
-        }
-
-        val reader = BufferedReader(InputStreamReader(respBody.byteStream()))
-        val fullText = StringBuilder()
-        var line: String?
-        var chunkCount = 0
-        var lastEmit = 0L
-        try {
-            while (reader.readLine().also { line = it } != null) {
-                val l = line ?: break
-                if (!l.startsWith("data: ")) continue
-                val data = l.removePrefix("data: ").trim()
-                if (data == "[DONE]") break
-                try {
-                    val content = extractContent(data)
-                    if (content.isNotEmpty()) {
-                        fullText.append(content)
-                        chunkCount++
-                        val now = System.currentTimeMillis()
-                        if (now - lastEmit >= 50 || fullText.length < 30) {
-                            lastEmit = now
-                            send(StreamEvent.Chunk(content, fullText.toString()))
-                        }
+        val call = okHttpClient.newCall(req)
+        val worker = launch(Dispatchers.IO) {
+            try {
+                trySend(StreamEvent.Thinking)
+                call.execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        trySend(StreamEvent.Error("API ${resp.code}: ${resp.body?.string()?.take(200)}"))
+                        close()
+                        return@launch
                     }
-                } catch (_: Exception) {}
+
+                    val respBody = resp.body
+                    if (respBody == null) {
+                        trySend(StreamEvent.Error("API 响应体为空"))
+                        close()
+                        return@launch
+                    }
+
+                    BufferedReader(InputStreamReader(respBody.byteStream())).use { reader ->
+                        val fullText = StringBuilder()
+                        var line: String?
+                        var lastEmit = 0L
+
+                        while (reader.readLine().also { line = it } != null) {
+                            val l = line ?: break
+                            if (!l.startsWith("data: ")) continue
+                            val data = l.removePrefix("data: ").trim()
+                            if (data == "[DONE]") break
+
+                            val content = extractContent(data)
+                            if (content.isNotEmpty()) {
+                                fullText.append(content)
+                                val now = System.currentTimeMillis()
+                                if (now - lastEmit >= 50 || fullText.length < 30) {
+                                    lastEmit = now
+                                    send(StreamEvent.Chunk(content, fullText.toString()))
+                                }
+                            }
+                        }
+
+                        val final = fullText.toString().trim()
+                        if (fullText.isNotEmpty()) send(StreamEvent.Chunk("", fullText.toString()))
+                        if (final.isBlank()) send(StreamEvent.Error("空响应"))
+                        else send(StreamEvent.Done(parseResponse(final)))
+                    }
+                    close()
+                }
+            } catch (e: IOException) {
+                if (!call.isCanceled()) {
+                    trySend(StreamEvent.Error("网络请求失败: ${e.message ?: "连接异常"}"))
+                }
+                close()
+            } catch (e: Exception) {
+                if (!call.isCanceled()) {
+                    trySend(StreamEvent.Error("流式响应处理失败: ${e.message ?: "未知错误"}"))
+                }
+                close()
             }
-            if (fullText.isNotEmpty()) send(StreamEvent.Chunk("", fullText.toString()))
-        } finally {
-            reader.close(); resp.close()
         }
 
-        val final = fullText.toString().trim()
-        if (final.isBlank()) send(StreamEvent.Error("空响应"))
-        else send(StreamEvent.Done(parseResponse(final)))
-        close()
+        awaitClose {
+            call.cancel()
+            worker.cancel()
+        }
     }
 
     private fun extractContent(jsonLine: String): String {

@@ -1,6 +1,7 @@
 package com.example.aimobileagent
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var llmRepository: LLMRepository
     @Inject lateinit var taskRepository: TaskRepository
+    @Inject lateinit var prefs: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,17 +48,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (!BuildConfig.DEBUG) return
+
         val cmd = intent?.getStringExtra("cmd") ?: return
         if (cmd.isBlank()) return
 
         // 如果传了 api_key，先保存到 SharedPreferences
         intent.getStringExtra("api_key")?.let { key ->
-            getSharedPreferences("agent_prefs", MODE_PRIVATE)
-                .edit().putString("api_key", key).apply()
-            Log.e("MainActivity", "API Key 已写入")
+            prefs.edit().putString("api_key", key).apply()
+            Log.d("MainActivity", "Debug API Key 已写入")
         }
 
-        Log.e("MainActivity", "CLI 命令: $cmd")
+        Log.d("MainActivity", "CLI 命令: ${cmd.take(80)}")
 
         lifecycleScope.launch {
             try {
@@ -68,18 +71,18 @@ class MainActivity : ComponentActivity() {
 
                 if (task.intent.startsWith("chat:")) {
                     val reply = task.intent.removePrefix("chat:")
-                    Log.e("MainActivity", "✅ 聊天回复: $reply")
+                    Log.d("MainActivity", "聊天回复: ${reply.take(120)}")
                 } else {
-                    Log.e("MainActivity", "✅ 任务: ${task.intent}, ${task.steps.size}步")
+                    Log.d("MainActivity", "任务: ${task.intent}, ${task.steps.size}步")
                     task.steps.forEach { s ->
-                        Log.e("MainActivity", "  Step${s.orderIndex}: ${s.actionType}→${s.targetApp ?: s.targetElement}")
+                        Log.d("MainActivity", "Step${s.orderIndex}: ${s.actionType}->${s.targetApp ?: s.targetElement}")
                     }
                     // 修复步骤的 taskId（LLMRepositoryImpl 中设为空字符串）
                     val fixedSteps = task.steps.map { it.copy(taskId = task.id) }
                     taskRepository.saveTask(task.copy(steps = fixedSteps, status = TaskStatus.READY))
                 }
             } catch (e: Exception) {
-                Log.e("MainActivity", "❌ 失败: ${e.message}", e)
+                Log.w("MainActivity", "Debug 命令失败: ${e.message}", e)
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.example.aimobileagent.data.repository
 
 import android.content.SharedPreferences
+import com.example.aimobileagent.data.BuildConfig
 import com.example.aimobileagent.data.remote.DeepSeekApiService
 import com.example.aimobileagent.data.remote.LLMResponseParser
 import com.example.aimobileagent.data.remote.PromptTemplateEngine
@@ -67,8 +68,10 @@ class LLMRepositoryImpl @Inject constructor(
             maxTokens = 2000
         )
 
-        Log.e("LLMRepository", "请求模型: $model, 端点: $endpoint")
-        Log.e("LLMRepository", "用户命令: $userCommand")
+        if (BuildConfig.DEBUG) {
+            Log.d("LLMRepository", "请求模型: $model, 端点: $endpoint")
+            Log.d("LLMRepository", "用户命令: ${userCommand.take(120)}")
+        }
 
         // 3. 发送请求
         val response = try {
@@ -78,27 +81,33 @@ class LLMRepositoryImpl @Inject constructor(
             )
         } catch (e: retrofit2.HttpException) {
             val errorBody = e.response()?.errorBody()?.string() ?: "无详情"
-            Log.e("LLMRepository", "HTTP ${e.code()}: $errorBody")
-            throw LLMException("API 错误 (${e.code()}): ${errorBody.take(200)}")
+            if (BuildConfig.DEBUG) {
+                Log.w("LLMRepository", "HTTP ${e.code()}: ${errorBody.take(200)}")
+            }
+            throw LLMException("API 错误 (${e.code()}): ${sanitizeApiError(errorBody)}")
         } catch (e: Exception) {
-            Log.e("LLMRepository", "API 请求失败", e)
+            if (BuildConfig.DEBUG) Log.w("LLMRepository", "API 请求失败", e)
             throw LLMException("LLM API 请求失败: ${e.message}", e)
         }
 
         // 4. 提取响应内容
         val content = response.choices.firstOrNull()?.message?.content
             ?: run {
-                Log.e("LLMRepository", "响应为空, choices=${response.choices.size}")
+                if (BuildConfig.DEBUG) Log.w("LLMRepository", "响应为空, choices=${response.choices.size}")
                 throw LLMException("LLM 返回空响应")
             }
 
-        Log.e("LLMRepository", "LLM 原始响应: ${content.take(500)}")
+        if (BuildConfig.DEBUG) {
+            Log.d("LLMRepository", "LLM 原始响应: ${content.take(500)}")
+        }
 
         // 5. 解析任务计划（失败时用全文当聊天回复）
         val planDto = try {
             responseParser.parse(content)
         } catch (e: LLMException) {
-            Log.e("LLMRepository", "JSON解析失败，使用全文回复: ${e.message?.take(100)}")
+            if (BuildConfig.DEBUG) {
+                Log.d("LLMRepository", "JSON解析失败，使用全文回复: ${e.message?.take(100)}")
+            }
             // 兜底：把 LLM 返回的全文当作聊天回复
             val cleaned = content
                 .replace(Regex("```[\\s\\S]*?```"), "")  // 去代码块
@@ -147,5 +156,12 @@ class LLMRepositoryImpl @Inject constructor(
             steps = steps,
             appsInvolved = steps.mapNotNull { it.targetApp }.distinct()
         )
+    }
+
+    private fun sanitizeApiError(errorBody: String): String {
+        return errorBody
+            .replace(Regex("sk-[A-Za-z0-9_-]{8,}"), "sk-***")
+            .replace(Regex("\"api[_-]?key\"\\s*:\\s*\"[^\"]+\"", RegexOption.IGNORE_CASE), "\"api_key\":\"***\"")
+            .take(160)
     }
 }
